@@ -75,8 +75,16 @@ async function loadAdminData() {
 // ─── GET /admin ───────────────────────────────────────────────────────────────
 exports.getAdminPanel = async (req, res) => {
   try {
+    // Read & clear flash data set by generateCode (PRG pattern)
+    const flash = req.session.flash || {};
+    delete req.session.flash;
+
     const data = await loadAdminData();
-    res.render('admin', { ...data, generatedCode: null, newPlayer: null });
+    res.render('admin', {
+      ...data,
+      generatedCode: flash.generatedCode || null,
+      newPlayer:     flash.newPlayer     || null,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).send('Server Error: ' + err.message);
@@ -103,8 +111,13 @@ exports.generateCode = async (req, res) => {
     const player = new Player({ name, type, course, uniqueCode, assignedPrize });
     await player.save();
 
-    const data = await loadAdminData();
-    res.render('admin', { ...data, generatedCode: uniqueCode, newPlayer: player });
+    // PRG pattern: store result in session flash and redirect to GET /admin
+    // This prevents duplicate player creation when the user refreshes the page.
+    req.session.flash = {
+      generatedCode: uniqueCode,
+      newPlayer: { name: player.name, assignedPrize: player.assignedPrize },
+    };
+    res.redirect('/admin');
   } catch (err) {
     console.error(err);
     res.status(500).send('Server Error: ' + err.message);

@@ -109,12 +109,15 @@
     </div>
   </div>
 
-  <!-- Audio Elements -->
+  <!-- Audio Elements — files go in /public/sounds/ -->
   <audio id="tickSound" loop>
-    <source src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3" type="audio/mpeg"/>
+    <source src="/sounds/spin.mp3" type="audio/mpeg"/>
   </audio>
   <audio id="winSound">
-    <source src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3" type="audio/mpeg"/>
+    <source src="/sounds/win.mp3" type="audio/mpeg"/>
+  </audio>
+  <audio id="loseSound">
+    <source src="/sounds/lose.mp3" type="audio/mpeg"/>
   </audio>
 
   <script>
@@ -268,22 +271,44 @@
         body: JSON.stringify({ uniqueCode: UNIQUE_CODE })
       });
 
-      // Win sound
-      const win = document.getElementById('winSound');
-      win.volume = 0.6;
-      win.play().catch(()=>{});
+      // Play win or lose sound based on prize
+      const isLoss = ASSIGNED_PRIZE.toLowerCase().includes('better luck') ||
+                     ASSIGNED_PRIZE.toLowerCase().includes('no prize');
 
-      // Confetti
-      const count = 300;
-      const defaults = { origin:{ y:0.7 }, colors:['#ffd700','#ffaa00','#fff8dc','#ffa500','#ffffff'] };
-      function fire(particleRatio, opts) {
-        confetti({ ...defaults, ...opts, particleCount: Math.floor(count * particleRatio) });
+      if (isLoss) {
+        const lose = document.getElementById('loseSound');
+        lose.volume = 0.7;
+        lose.play().catch(()=>{});
+      } else {
+        const win = document.getElementById('winSound');
+        win.volume = 0.7;
+        win.play().catch(()=>{});
+
+        // Confetti only on actual wins
+        const count = 300;
+        const defaults = { origin:{ y:0.7 }, colors:['#ffd700','#ffaa00','#fff8dc','#ffa500','#ffffff'] };
+        function fire(particleRatio, opts) {
+          confetti({ ...defaults, ...opts, particleCount: Math.floor(count * particleRatio) });
+        }
+        fire(0.25, { spread:26, startVelocity:55 });
+        fire(0.2,  { spread:60 });
+        fire(0.35, { spread:100, decay:0.91, scalar:0.8 });
+        fire(0.1,  { spread:120, startVelocity:25, decay:0.92, scalar:1.2 });
+        fire(0.1,  { spread:120, startVelocity:45 });
       }
-      fire(0.25, { spread:26, startVelocity:55 });
-      fire(0.2,  { spread:60 });
-      fire(0.35, { spread:100, decay:0.91, scalar:0.8 });
-      fire(0.1,  { spread:120, startVelocity:25, decay:0.92, scalar:1.2 });
-      fire(0.1,  { spread:120, startVelocity:45 });
+
+      // Update modal for win vs lose
+      const prizeEmoji = document.getElementById('prizeEmoji');
+      const modalTitle = document.querySelector('#resultModal h2');
+      if (isLoss) {
+        prizeEmoji.textContent = '😅';
+        modalTitle.textContent = 'BETTER LUCK NEXT TIME!';
+        modalTitle.style.color = '#9ca3af';
+      } else {
+        prizeEmoji.textContent = '🎉';
+        modalTitle.textContent = 'YOU WON!';
+        modalTitle.style.color = '#ffd700';
+      }
 
       // Show modal
       document.getElementById('prizeDisplay').textContent = ASSIGNED_PRIZE;
