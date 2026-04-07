@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Spin the Wheel | Elite Pro Arenas</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet"/>
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+  <style>
+    body { font-family:'Inter',sans-serif; background:#0a0a0f; margin:0; padding:0; overflow:hidden; }
+    .orbitron { font-family:'Orbitron',monospace; }
+    canvas#wheelCanvas { border-radius:50%; }
+    .wheel-container { position:relative; display:inline-block; }
+    .wheel-pointer {
+      position:absolute; top:-18px; left:50%; transform:translateX(-50%);
+      width:0; height:0;
+      border-left:18px solid transparent;
+      border-right:18px solid transparent;
+      border-top:36px solid #ffd700;
+      filter: drop-shadow(0 0 8px #ffd700);
+      z-index:10;
+    }
+    .wheel-glow {
+      position:absolute; inset:-20px; border-radius:50%;
+      background: radial-gradient(circle, transparent 45%, rgba(255,215,0,0.15) 70%, transparent 100%);
+      animation: rotateGlow 4s linear infinite;
+    }
+    @keyframes rotateGlow { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+    .float-anim { animation: float 2s ease-in-out infinite; }
+    #resultModal {
+      display:none; position:fixed; inset:0;
+      background:rgba(0,0,0,0.85); backdrop-filter:blur(10px);
+      z-index:100; align-items:center; justify-content:center;
+    }
+    #resultModal.show { display:flex; }
+    .modal-card {
+      background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);
+      border:2px solid #ffd700; border-radius:24px;
+      padding:40px 32px; text-align:center; max-width:380px; width:90%;
+      box-shadow:0 0 60px rgba(255,215,0,0.4), 0 0 120px rgba(255,215,0,0.1);
+      animation: popIn 0.5s cubic-bezier(0.175,0.885,0.32,1.275);
+    }
+    @keyframes popIn {
+      from{transform:scale(0.5);opacity:0}
+      to{transform:scale(1);opacity:1}
+    }
+    .prize-text {
+      font-size:1.5rem; font-weight:800; color:#ffd700;
+      text-shadow:0 0 20px #ffd700;
+      font-family:'Orbitron',monospace;
+      word-break:break-word;
+    }
+    .spin-btn {
+      background:linear-gradient(135deg,#ffd700,#ffaa00);
+      color:#000; font-family:'Orbitron',monospace;
+      font-weight:900; font-size:1.1rem; letter-spacing:0.1em;
+      border:none; cursor:pointer; border-radius:50px;
+      padding:16px 48px; transition:all 0.3s;
+      box-shadow:0 0 30px rgba(255,215,0,0.5);
+    }
+    .spin-btn:hover:not(:disabled) { transform:scale(1.05); box-shadow:0 0 50px rgba(255,215,0,0.8); }
+    .spin-btn:disabled { opacity:0.5; cursor:not-allowed; }
+    .bg-grid {
+      background-image:linear-gradient(rgba(255,215,0,0.03) 1px,transparent 1px),
+                       linear-gradient(90deg,rgba(255,215,0,0.03) 1px,transparent 1px);
+      background-size:50px 50px;
+    }
+  </style>
+</head>
+<body class="bg-grid min-h-screen flex flex-col items-center justify-center">
+
+  <!-- Ambient Glows -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden">
+    <div class="absolute top-0 left-1/4 w-96 h-96 bg-yellow-500 rounded-full opacity-5 blur-3xl"></div>
+    <div class="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-600 rounded-full opacity-5 blur-3xl"></div>
+  </div>
+
+  <!-- Header -->
+  <div class="text-center mb-6 z-10 px-4">
+    <h1 class="orbitron text-2xl md:text-3xl font-black text-yellow-400 tracking-wider">🎰 SPIN THE WHEEL</h1>
+    <p class="text-gray-400 text-sm mt-1">Good luck, <span class="text-yellow-300 font-semibold"><%= player.name %></span>! 🍀</p>
+  </div>
+
+  <!-- Wheel -->
+  <div class="wheel-container z-10 mb-6" id="wheelWrap">
+    <div class="wheel-glow"></div>
+    <div class="wheel-pointer"></div>
+    <canvas id="wheelCanvas" width="380" height="380"></canvas>
+  </div>
+
+  <!-- Spin Button -->
+  <button class="spin-btn z-10" id="spinBtn" onclick="startSpin()">⚡ SPIN NOW</button>
+
+  <!-- Prize Result Modal -->
+  <div id="resultModal">
+    <div class="modal-card">
+      <div class="text-6xl mb-4 float-anim" id="prizeEmoji">🎉</div>
+      <h2 class="orbitron text-yellow-400 text-lg mb-3 tracking-wider">YOU WON!</h2>
+      <div class="prize-text mb-6" id="prizeDisplay"></div>
+      <p class="text-gray-300 text-sm mb-6">Collect your prize at the counter. Show this screen to the stall coordinator!</p>
+      <button
+        onclick="goToFeedback()"
+        class="w-full py-3 rounded-xl orbitron font-bold text-black bg-gradient-to-r from-yellow-400 to-yellow-500 hover:shadow-[0_0_25px_rgba(255,215,0,0.6)] transition-all text-sm tracking-wider">
+        📝 GIVE FEEDBACK →
+      </button>
+    </div>
+  </div>
+
+  <!-- Audio Elements -->
+  <audio id="tickSound" loop>
+    <source src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3" type="audio/mpeg"/>
+  </audio>
+  <audio id="winSound">
+    <source src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3" type="audio/mpeg"/>
+  </audio>
+
+  <script>
+    // ─── Data from server ───
+    const PRIZES = <%- wheelPrizes %>;
+    const ASSIGNED_PRIZE = "<%= assignedPrize %>";
+    const UNIQUE_CODE = "<%= player.uniqueCode %>";
+
+    // ─── Wheel Colors ───
+    const COLORS = [
+      '#1a1a2e','#c8960c','#16213e','#e8a207','#0f3460',
+      '#ffd700','#1a1a2e','#c8960c','#16213e'
+    ];
+    const TEXT_COLORS = [
+      '#ffd700','#000','#ffd700','#000','#ffd700',
+      '#000','#ffd700','#000','#ffd700'
+    ];
+
+    const canvas = document.getElementById('wheelCanvas');
+    const ctx = canvas.getContext('2d');
+    const NUM = PRIZES.length;
+    const ARC = (2 * Math.PI) / NUM;
+
+    let currentAngle = 0;
+    let spinning = false;
+
+    // ─── Draw Wheel ───
+    function drawWheel(angle) {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      const cx = canvas.width/2, cy = canvas.height/2, r = canvas.width/2 - 8;
+
+      // Outer ring
+      ctx.beginPath();
+      ctx.arc(cx,cy,r+6,0,2*Math.PI);
+      ctx.strokeStyle='#ffd700';
+      ctx.lineWidth=4;
+      ctx.stroke();
+
+      for(let i=0; i<NUM; i++){
+        const startAngle = angle + i * ARC;
+        const endAngle = startAngle + ARC;
+
+        // Slice
+        ctx.beginPath();
+        ctx.moveTo(cx,cy);
+        ctx.arc(cx,cy,r,startAngle,endAngle);
+        ctx.closePath();
+        ctx.fillStyle = COLORS[i % COLORS.length];
+        ctx.fill();
+        ctx.strokeStyle='rgba(255,215,0,0.3)';
+        ctx.lineWidth=1.5;
+        ctx.stroke();
+
+        // Text
+        ctx.save();
+        ctx.translate(cx,cy);
+        ctx.rotate(startAngle + ARC/2);
+        ctx.textAlign='right';
+        ctx.fillStyle = TEXT_COLORS[i % TEXT_COLORS.length];
+        ctx.font = `bold ${canvas.width < 400 ? 11 : 13}px Inter`;
+        const label = PRIZES[i].length > 14 ? PRIZES[i].substring(0,14)+'…' : PRIZES[i];
+        ctx.fillText(label, r - 14, 5);
+        ctx.restore();
+      }
+
+      // Center circle
+      const grad = ctx.createRadialGradient(cx,cy,0,cx,cy,40);
+      grad.addColorStop(0,'#ffd700');
+      grad.addColorStop(1,'#cc8800');
+      ctx.beginPath();
+      ctx.arc(cx,cy,38,0,2*Math.PI);
+      ctx.fillStyle=grad;
+      ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,0.5)';
+      ctx.lineWidth=2;
+      ctx.stroke();
+
+      ctx.fillStyle='#000';
+      ctx.font='bold 10px Orbitron, monospace';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.fillText('SPIN',cx,cy-5);
+      ctx.fillText('WIN',cx,cy+7);
+    }
+
+    drawWheel(0);
+
+    // ─── Spin Logic ───
+    function startSpin() {
+      if(spinning) return;
+      spinning = true;
+      document.getElementById('spinBtn').disabled = true;
+
+      // Play tick sound
+      const tick = document.getElementById('tickSound');
+      tick.volume = 0.4;
+      tick.play().catch(()=>{});
+
+      // Find target index
+      const targetIdx = PRIZES.indexOf(ASSIGNED_PRIZE);
+      const safeIdx = targetIdx === -1 ? 0 : targetIdx;
+
+      // Calculate target angle
+      // We want pointer (top) to land on the center of safeIdx slice
+      // Each slice center is at: safeIdx * ARC + ARC/2 from angle 0
+      // wheel angle needed = -PI/2 - (safeIdx * ARC + ARC/2)  [pointer at top = -PI/2]
+      const sliceCenter = safeIdx * ARC + ARC / 2;
+      const targetAngle = (2 * Math.PI * 7) + ((-Math.PI / 2) - sliceCenter);
+
+      const duration = 5000 + Math.random() * 1500; // 5-6.5s
+      const startTime = performance.now();
+      const startAngle = currentAngle;
+
+      function animate(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Ease-out cubic
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const newAngle = startAngle + (targetAngle - startAngle) * eased;
+
+        currentAngle = newAngle;
+        drawWheel(currentAngle);
+
+        // Vary tick speed based on progress
+        if(tick.playbackRate !== undefined && progress < 0.8) {
+          tick.playbackRate = 1 + (1 - progress) * 1.5;
+        } else {
+          tick.playbackRate = 1;
+        }
+
+        if(progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          tick.pause();
+          tick.currentTime = 0;
+          onSpinEnd();
+        }
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    function onSpinEnd() {
+      spinning = false;
+
+      // Mark spun in DB
+      fetch('/game/mark-spun', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ uniqueCode: UNIQUE_CODE })
+      });
+
+      // Win sound
+      const win = document.getElementById('winSound');
+      win.volume = 0.6;
+      win.play().catch(()=>{});
+
+      // Confetti
+      const count = 300;
+      const defaults = { origin:{ y:0.7 }, colors:['#ffd700','#ffaa00','#fff8dc','#ffa500','#ffffff'] };
+      function fire(particleRatio, opts) {
+        confetti({ ...defaults, ...opts, particleCount: Math.floor(count * particleRatio) });
+      }
+      fire(0.25, { spread:26, startVelocity:55 });
+      fire(0.2,  { spread:60 });
+      fire(0.35, { spread:100, decay:0.91, scalar:0.8 });
+      fire(0.1,  { spread:120, startVelocity:25, decay:0.92, scalar:1.2 });
+      fire(0.1,  { spread:120, startVelocity:45 });
+
+      // Show modal
+      document.getElementById('prizeDisplay').textContent = ASSIGNED_PRIZE;
+      document.getElementById('resultModal').classList.add('show');
+    }
+
+    function goToFeedback() {
+      window.location.href = `/feedback/${UNIQUE_CODE}`;
+    }
+
+    // Resize
+    function resizeCanvas() {
+      const size = Math.min(window.innerWidth - 40, 380);
+      canvas.width = size;
+      canvas.height = size;
+      drawWheel(currentAngle);
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+  </script>
+</body>
+</html>

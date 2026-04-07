@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Login | Elite Pro Arenas</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #080810;
+      color: #e8e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .orbitron { font-family: 'Orbitron', monospace; }
+
+    /* Grid background */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(255,215,0,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,215,0,0.04) 1px, transparent 1px);
+      background-size: 50px 50px;
+      pointer-events: none;
+    }
+
+    /* Ambient glows */
+    .glow1 { position:fixed; top:-100px; left:50%; transform:translateX(-50%); width:600px; height:600px; background:radial-gradient(circle, rgba(255,215,0,0.06) 0%, transparent 70%); }
+    .glow2 { position:fixed; bottom:-150px; left:20%; width:400px; height:400px; background:radial-gradient(circle, rgba(130,0,255,0.06) 0%, transparent 70%); }
+
+    .card {
+      position: relative; z-index: 10;
+      background: rgba(13,13,26,0.9);
+      border: 1px solid rgba(255,215,0,0.25);
+      border-radius: 24px;
+      padding: 48px 40px;
+      width: 100%; max-width: 420px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 0 60px rgba(255,215,0,0.08), 0 30px 60px rgba(0,0,0,0.5);
+      animation: slideUp 0.5s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    .logo-icon { font-size: 3rem; text-align: center; margin-bottom: 16px; }
+    .logo-title {
+      text-align: center; margin-bottom: 4px;
+      font-family: 'Orbitron', monospace;
+      font-size: 1.4rem; font-weight: 900;
+      color: #ffd700;
+      text-shadow: 0 0 20px rgba(255,215,0,0.4);
+    }
+    .logo-sub {
+      text-align: center; font-size: 0.7rem;
+      letter-spacing: 0.3em; text-transform: uppercase;
+      color: rgba(255,215,0,0.4); margin-bottom: 40px;
+    }
+
+    label {
+      display: block; font-size: 0.72rem;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: #888; margin-bottom: 8px;
+    }
+    .input-wrap { position: relative; margin-bottom: 24px; }
+    input[type="password"] {
+      width: 100%; padding: 14px 48px 14px 16px;
+      background: rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,215,0,0.2);
+      border-radius: 12px; color: #e8e8f0;
+      font-size: 1rem; font-family: 'Inter', sans-serif;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    input[type="password"]:focus {
+      outline: none;
+      border-color: #ffd700;
+      box-shadow: 0 0 16px rgba(255,215,0,0.2);
+    }
+    .eye-btn {
+      position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer;
+      color: #888; font-size: 1.1rem; transition: color 0.2s;
+    }
+    .eye-btn:hover { color: #ffd700; }
+
+    .error-box {
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.35);
+      color: #f87171; border-radius: 10px;
+      padding: 10px 14px; font-size: 0.82rem;
+      margin-bottom: 20px; display: flex; align-items: center; gap: 8px;
+    }
+
+    .btn-login {
+      width: 100%; padding: 15px;
+      background: linear-gradient(135deg, #ffd700, #e6c200);
+      color: #000; font-family: 'Orbitron', monospace;
+      font-weight: 900; font-size: 0.9rem; letter-spacing: 0.1em;
+      border: none; border-radius: 12px; cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 20px rgba(255,215,0,0.3);
+    }
+    .btn-login:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(255,215,0,0.5);
+    }
+    .btn-login:active { transform: translateY(0); }
+
+    .footer-note {
+      text-align: center; margin-top: 24px;
+      font-size: 0.75rem; color: rgba(255,215,0,0.3);
+      letter-spacing: 0.05em;
+    }
+
+    /* Spinning lock icon animation */
+    @keyframes pulse { 0%,100%{text-shadow:0 0 10px rgba(255,215,0,0.3)} 50%{text-shadow:0 0 30px rgba(255,215,0,0.8)} }
+    .logo-icon { animation: pulse 2s ease-in-out infinite; }
+  </style>
+</head>
+<body>
+  <div class="glow1"></div>
+  <div class="glow2"></div>
+
+  <div class="card">
+    <div class="logo-icon">🔐</div>
+    <div class="logo-title">ELITE PRO ARENAS</div>
+    <div class="logo-sub">Admin Panel Access</div>
+
+    <% if (error) { %>
+    <div class="error-box">
+      <span>⚠️</span> <%= error %>
+    </div>
+    <% } %>
+
+    <form action="/admin/login" method="POST" id="loginForm">
+      <label for="password">Admin Password</label>
+      <div class="input-wrap">
+        <input
+          type="password"
+          id="password"
+          name="password"
+          placeholder="Enter password"
+          autocomplete="current-password"
+          required
+          autofocus
+        />
+        <button type="button" class="eye-btn" onclick="togglePwd()" id="eyeBtn">👁️</button>
+      </div>
+
+      <button type="submit" class="btn-login" id="loginBtn">
+        ⚡ ACCESS PANEL
+      </button>
+    </form>
+
+    <div class="footer-note">⚡ Elite Pro Arenas — Stall Management</div>
+  </div>
+
+  <script>
+    function togglePwd() {
+      const inp = document.getElementById('password');
+      const btn = document.getElementById('eyeBtn');
+      if (inp.type === 'password') {
+        inp.type = 'text';
+        btn.textContent = '🙈';
+      } else {
+        inp.type = 'password';
+        btn.textContent = '👁️';
+      }
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', function() {
+      const btn = document.getElementById('loginBtn');
+      btn.textContent = '⏳ Verifying...';
+      btn.disabled = true;
+    });
+  </script>
+</body>
+</html>

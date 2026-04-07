@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Elite Pro Arenas | Spin &amp; Win — Demo</title>
+  <meta name="description" content="Spin the wheel and win amazing prizes at Elite Pro Arenas college fest stall!"/>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #030308;
+      overflow: hidden;
+      width: 100vw; height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .orbitron { font-family: 'Orbitron', monospace; }
+
+    /* ─── STARFIELD ─── */
+    #starCanvas { position: fixed; inset: 0; z-index: 0; }
+
+    /* ─── AMBIENT GLOWS ─── */
+    .glow-center {
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -55%);
+      width: 700px; height: 700px;
+      background: radial-gradient(circle, rgba(255,215,0,0.08) 0%, transparent 65%);
+      pointer-events: none; z-index: 1;
+      animation: breathe 4s ease-in-out infinite;
+    }
+    .glow-left {
+      position: fixed; top: 30%; left: -10%;
+      width: 450px; height: 450px;
+      background: radial-gradient(circle, rgba(168,85,247,0.09) 0%, transparent 70%);
+      pointer-events: none; z-index: 1;
+      animation: breathe 5s ease-in-out infinite reverse;
+    }
+    .glow-right {
+      position: fixed; bottom: 20%; right: -10%;
+      width: 450px; height: 450px;
+      background: radial-gradient(circle, rgba(6,182,212,0.07) 0%, transparent 70%);
+      pointer-events: none; z-index: 1;
+      animation: breathe 6s ease-in-out infinite;
+    }
+    @keyframes breathe { 0%,100%{opacity:0.6;transform:scale(1)} 50%{opacity:1;transform:scale(1.1)} }
+
+    /* ─── MAIN LAYOUT ─── */
+    .scene {
+      position: relative; z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(30px, 5vw, 80px);
+      width: 100vw;
+      padding: 0 40px;
+    }
+
+    /* ─── WHEEL SIDE ─── */
+    .wheel-side {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+
+    .wheel-wrap {
+      position: relative;
+      display: inline-block;
+    }
+
+    #demoWheel {
+      border-radius: 50%;
+      filter: drop-shadow(0 0 35px rgba(255,215,0,0.6));
+    }
+
+    .wheel-outer-ring {
+      position: absolute; inset: -14px;
+      border-radius: 50%;
+      border: 3px solid rgba(255,215,0,0.5);
+      animation: spinRing 12s linear infinite reverse;
+      box-shadow: 0 0 20px rgba(255,215,0,0.15);
+    }
+    .wheel-outer-ring::before {
+      content: '';
+      position: absolute; inset: 6px;
+      border-radius: 50%;
+      border: 1px dashed rgba(255,215,0,0.25);
+    }
+    @keyframes spinRing { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+    /* ══ 8 diamond studs around the ring ══ */
+    .wheel-stud {
+      position: absolute;
+      width: 10px; height: 10px;
+      background: #ffd700;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #ffd700;
+      transform-origin: 50% 50%;
+    }
+
+    /* Pointer */
+    .wheel-pointer {
+      position: absolute;
+      top: -32px; left: 50%;
+      transform: translateX(-50%);
+      width: 0; height: 0;
+      border-left: 22px solid transparent;
+      border-right: 22px solid transparent;
+      border-top: 44px solid #ffd700;
+      filter: drop-shadow(0 0 12px #ffd700);
+      animation: pointerBounce 0.8s ease-in-out infinite;
+      z-index: 5;
+    }
+    @keyframes pointerBounce { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(-6px)} }
+
+    /* ─── TEXT SIDE ─── */
+    .text-side {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      max-width: 500px;
+    }
+
+    .event-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(255,215,0,0.1); border: 1px solid rgba(255,215,0,0.4);
+      border-radius: 50px; padding: 6px 20px;
+      font-size: 0.7rem; letter-spacing: 0.25em;
+      text-transform: uppercase; color: #ffd700;
+      margin-bottom: 22px;
+      animation: fadePulse 2s ease-in-out infinite;
+    }
+    @keyframes fadePulse { 0%,100%{opacity:0.75} 50%{opacity:1} }
+
+    .main-title {
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(2.8rem, 5.5vw, 5.2rem);
+      font-weight: 900;
+      line-height: 0.95;
+      margin-bottom: 14px;
+      background: linear-gradient(135deg, #ffd700 0%, #fff8dc 40%, #ffd700 60%, #ffaa00 100%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: shimmer 3s linear infinite;
+    }
+    @keyframes shimmer { 0%{background-position:0% center} 100%{background-position:200% center} }
+
+    .sub-title {
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(1rem, 2.5vw, 1.75rem);
+      font-weight: 700;
+      color: rgba(255,255,255,0.85);
+      letter-spacing: 0.09em;
+      margin-bottom: 8px;
+    }
+
+    .tagline {
+      font-size: clamp(0.8rem, 1.4vw, 0.95rem);
+      color: rgba(255,255,255,0.38);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      margin-bottom: 32px;
+    }
+
+    /* Prizes preview */
+    .prizes-scroll {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 40px;
+      max-width: 440px;
+    }
+    .prize-tag {
+      background: rgba(255,215,0,0.08);
+      border: 1px solid rgba(255,215,0,0.22);
+      border-radius: 50px; padding: 5px 15px;
+      font-size: 0.78rem; color: rgba(255,215,0,0.85);
+      animation: tagFloat var(--d, 3s) ease-in-out infinite var(--delay, 0s);
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .prize-tag:hover { background: rgba(255,215,0,0.18); border-color: rgba(255,215,0,0.5); }
+    @keyframes tagFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+
+    /* ══ PLAY BUTTON ══ */
+    .play-btn-wrap {
+      position: relative;
+      display: inline-block;
+    }
+    .play-btn {
+      position: relative;
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: 14px;
+      padding: 22px 62px;
+      background: linear-gradient(135deg, #ffd700, #ffaa00, #ffd700);
+      background-size: 200% auto;
+      color: #000;
+      font-family: 'Orbitron', monospace;
+      font-weight: 900; font-size: clamp(1.1rem, 2.5vw, 1.5rem);
+      letter-spacing: 0.12em;
+      border: none; border-radius: 70px; cursor: pointer;
+      text-decoration: none;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow:
+        0 0 40px rgba(255,215,0,0.55),
+        0 0 80px rgba(255,215,0,0.2),
+        0 10px 40px rgba(0,0,0,0.5);
+      animation: shimmer 2s linear infinite, pulseBtn 2s ease-in-out infinite;
+      z-index: 2;
+    }
+    @keyframes pulseBtn {
+      0%,100%{ box-shadow: 0 0 40px rgba(255,215,0,0.5), 0 0 80px rgba(255,215,0,0.2), 0 10px 40px rgba(0,0,0,0.5); }
+      50%{     box-shadow: 0 0 70px rgba(255,215,0,0.85), 0 0 120px rgba(255,215,0,0.4), 0 10px 40px rgba(0,0,0,0.5); }
+    }
+    .play-btn:hover { transform: scale(1.06); }
+    .play-btn:active { transform: scale(0.97); }
+    .play-icon { font-size: 1.7rem; animation: iconSpin 4s linear infinite; }
+    @keyframes iconSpin { 0%,100%{transform:rotate(0deg)} 25%{transform:rotate(-12deg)} 75%{transform:rotate(12deg)} }
+
+    /* Ripple rings */
+    .btn-ring {
+      position: absolute; inset: -16px;
+      border: 2px solid rgba(255,215,0,0.45);
+      border-radius: 70px;
+      animation: ringPulse 2s ease-out infinite;
+    }
+    .btn-ring2 {
+      position: absolute; inset: -30px;
+      border: 1px solid rgba(255,215,0,0.22);
+      border-radius: 80px;
+      animation: ringPulse 2s ease-out infinite 0.6s;
+    }
+    @keyframes ringPulse {
+      0%{opacity:1;transform:scale(1)}
+      100%{opacity:0;transform:scale(1.18)}
+    }
+
+    .hint-text {
+      margin-top: 18px;
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.25);
+      letter-spacing: 0.1em;
+      text-align: left;
+    }
+    .hint-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 14px;
+    }
+    .hint-step {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.28);
+    }
+    .step-num {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: rgba(255,215,0,0.12);
+      border: 1px solid rgba(255,215,0,0.3);
+      color: #ffd700; font-size: 0.65rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* ─── FLOATING PARTICLES ─── */
+    .particle {
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 2;
+      animation: floatUp var(--dur,8s) linear var(--delay,0s) infinite;
+      opacity: 0;
+    }
+    @keyframes floatUp {
+      0%   {transform:translateY(0) rotate(0deg); opacity:0;}
+      10%  {opacity:0.9;}
+      90%  {opacity:0.4;}
+      100% {transform:translateY(-100vh) rotate(360deg); opacity:0;}
+    }
+
+    /* ─── BOTTOM TICKER ─── */
+    .ticker {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: rgba(0,0,0,0.6);
+      border-top: 1px solid rgba(255,215,0,0.25);
+      padding: 11px 0; overflow: hidden; z-index: 20;
+    }
+    .ticker-inner {
+      white-space: nowrap;
+      animation: tickerMove 28s linear infinite;
+      font-family: 'Orbitron', monospace;
+      font-size: 0.73rem;
+      letter-spacing: 0.22em;
+      color: rgba(255,215,0,0.65);
+    }
+    @keyframes tickerMove { from{transform:translateX(100vw)} to{transform:translateX(-200%)} }
+
+    /* ─── LOADING OVERLAY ─── */
+    #loadOverlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(3,3,8,0.85);
+      backdrop-filter: blur(6px);
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 20px;
+    }
+    #loadOverlay.show { display: flex; }
+    .load-spinner {
+      width: 70px; height: 70px;
+      border: 4px solid rgba(255,215,0,0.15);
+      border-top-color: #ffd700;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    .load-text {
+      font-family: 'Orbitron', monospace;
+      color: #ffd700; font-size: 0.9rem; letter-spacing: 0.2em;
+    }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 768px) {
+      .scene { flex-direction: column; gap: 24px; padding: 16px 20px; }
+      .text-side { align-items: center; text-align: center; }
+      .prizes-scroll { justify-content: center; }
+      .hint-text, .hint-steps { text-align: center; align-items: center; }
+      #demoWheel { width: 240px !important; height: 240px !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Loading overlay -->
+  <div id="loadOverlay">
+    <div class="load-spinner"></div>
+    <div class="load-text">LOADING…</div>
+  </div>
+
+  <!-- Starfield -->
+  <canvas id="starCanvas"></canvas>
+
+  <!-- Glows -->
+  <div class="glow-center"></div>
+  <div class="glow-left"></div>
+  <div class="glow-right"></div>
+
+  <!-- Floating particles -->
+  <div id="particles"></div>
+
+  <!-- Main scene -->
+  <div class="scene">
+
+    <!-- Wheel -->
+    <div class="wheel-side">
+      <div class="wheel-wrap" id="wheelWrap">
+        <div class="wheel-outer-ring" id="outerRing"></div>
+        <div class="wheel-pointer"></div>
+        <canvas id="demoWheel" width="320" height="320"></canvas>
+      </div>
+    </div>
+
+    <!-- Text + CTA -->
+    <div class="text-side">
+      <div class="event-badge">⚡ College Fest 2025</div>
+
+      <div class="main-title">ELITE<br>PRO<br>ARENAS</div>
+      <div class="sub-title">SPIN THE WHEEL</div>
+      <div class="tagline">Win Amazing Prizes • Everyone Wins!</div>
+
+      <div class="prizes-scroll" id="prizeTagsWrap">
+        <!-- filled by JS -->
+      </div>
+
+      <!-- Button -->
+      <div class="play-btn-wrap">
+        <div class="btn-ring"></div>
+        <div class="btn-ring2"></div>
+        <a href="/" class="play-btn" id="playBtn">
+          <span class="play-icon">🎰</span>
+          PLAY NOW
+        </a>
+      </div>
+
+      <div class="hint-text">Get your code at the counter, then hit PLAY NOW!</div>
+      <div class="hint-steps">
+        <div class="hint-step"><div class="step-num">1</div>Visit the stall counter</div>
+        <div class="hint-step"><div class="step-num">2</div>Collect your 4-digit spin code</div>
+        <div class="hint-step"><div class="step-num">3</div>Hit PLAY NOW &amp; enter the code</div>
+        <div class="hint-step"><div class="step-num">4</div>Spin the wheel &amp; claim your prize! 🎁</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom Ticker -->
+  <div class="ticker">
+    <div class="ticker-inner" id="ticker"></div>
+  </div>
+
+  <script>
+    // ─── Prizes from server ───────────────────────────────────────────────────
+    const PRIZES = <%- JSON.stringify(prizes) %>;
+
+    // ─── Wheel Colors ─────────────────────────────────────────────────────────
+    const COLORS = [
+      '#1a1a2e','#c8960c','#16213e','#e8a207',
+      '#0f3460','#ffd700','#1a0a2e','#c8960c','#0a1628',
+      '#2a1a0e','#0a2a1a','#1a0a2e'
+    ];
+    const TEXT_COLORS = [
+      '#ffd700','#000','#ffd700','#000',
+      '#ffd700','#000','#ffd700','#000','#ffd700',
+      '#ffd700','#ffd700','#ffd700'
+    ];
+
+    // ─── Draw decorative wheel (continuously spinning) ────────────────────────
+    const canvas = document.getElementById('demoWheel');
+    const ctx    = canvas.getContext('2d');
+    const NUM    = PRIZES.length;
+    const ARC    = (2 * Math.PI) / NUM;
+
+    function drawWheel(angle) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const cx = canvas.width / 2, cy = canvas.height / 2;
+      const r  = canvas.width / 2 - 8;
+
+      for (let i = 0; i < NUM; i++) {
+        const startAngle = angle + i * ARC;
+        const endAngle   = startAngle + ARC;
+
+        // Slice
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, r, startAngle, endAngle);
+        ctx.closePath();
+        ctx.fillStyle = COLORS[i % COLORS.length];
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,215,0,0.5)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Text label
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(startAngle + ARC / 2);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = TEXT_COLORS[i % TEXT_COLORS.length];
+        ctx.font = `bold ${Math.min(11, 280 / NUM)}px Inter, sans-serif`;
+        const label = PRIZES[i].length > 16 ? PRIZES[i].substring(0, 15) + '…' : PRIZES[i];
+        ctx.fillText(label, r - 12, 4);
+        ctx.restore();
+      }
+
+      // Outer gold ring
+      ctx.beginPath();
+      ctx.arc(cx, cy, r + 4, 0, 2 * Math.PI);
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 5;
+      ctx.stroke();
+
+      // Decorative studs on the ring
+      for (let i = 0; i < NUM; i++) {
+        const a = angle + i * ARC + ARC / 2;
+        const sx = cx + (r + 10) * Math.cos(a);
+        const sy = cy + (r + 10) * Math.sin(a);
+        ctx.beginPath();
+        ctx.arc(sx, sy, 4, 0, 2 * Math.PI);
+        ctx.fillStyle = '#ffd700';
+        ctx.fill();
+      }
+
+      // Center hub
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.15, 0, 2 * Math.PI);
+      const hubGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 0.15);
+      hubGrad.addColorStop(0, '#fff8dc');
+      hubGrad.addColorStop(1, '#c8960c');
+      ctx.fillStyle = hubGrad;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = '#000';
+      ctx.font = `bold ${Math.min(9, canvas.width * 0.028)}px Orbitron, monospace`;
+      ctx.textAlign   = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('WIN', cx, cy);
+    }
+
+    // Continuous smooth spin
+    let angle = 0;
+    const SPEED = 0.0045; // radians per frame ~1.5 RPM feel
+    function animate() {
+      angle += SPEED;
+      drawWheel(angle);
+      requestAnimationFrame(animate);
+    }
+    // Set initial size
+    (function resizeWheel() {
+      const size = Math.min(
+        window.innerWidth <= 768 ? window.innerWidth - 80 : window.innerWidth * 0.32,
+        340
+      );
+      canvas.width  = size;
+      canvas.height = size;
+    })();
+    animate();
+
+    // ─── Prize tags ───────────────────────────────────────────────────────────
+    const wrap = document.getElementById('prizeTagsWrap');
+    PRIZES.forEach((p, i) => {
+      const d     = document.createElement('div');
+      d.className = 'prize-tag';
+      d.textContent = p;
+      d.style.setProperty('--d', `${3 + (i % 5)}s`);
+      d.style.setProperty('--delay', `${(i * 0.25)}s`);
+      wrap.appendChild(d);
+    });
+
+    // ─── Ticker text ──────────────────────────────────────────────────────────
+    const tickerPrizes = PRIZES.join('  •  ');
+    document.getElementById('ticker').textContent =
+      `🏆 WELCOME TO ELITE PRO ARENAS  •  SPIN THE WHEEL & WIN!  •  ${tickerPrizes}  •  GET YOUR CODE AT THE COUNTER  •  EVERYONE WINS A PRIZE!  •  `;
+
+    // ─── Star field ───────────────────────────────────────────────────────────
+    const sc   = document.getElementById('starCanvas');
+    const sctx = sc.getContext('2d');
+    sc.width   = window.innerWidth;
+    sc.height  = window.innerHeight;
+    const stars = Array.from({ length: 200 }, () => ({
+      x: Math.random() * sc.width,
+      y: Math.random() * sc.height,
+      r: Math.random() * 1.5 + 0.2,
+      alpha: Math.random(),
+      speed: Math.random() * 0.006 + 0.002
+    }));
+    function drawStars() {
+      sctx.clearRect(0, 0, sc.width, sc.height);
+      stars.forEach(s => {
+        s.alpha += s.speed;
+        if (s.alpha > 1 || s.alpha < 0) s.speed *= -1;
+        sctx.beginPath();
+        sctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        sctx.fillStyle = `rgba(255,215,0,${s.alpha * 0.55})`;
+        sctx.fill();
+      });
+      requestAnimationFrame(drawStars);
+    }
+    drawStars();
+
+    window.addEventListener('resize', () => {
+      sc.width  = window.innerWidth;
+      sc.height = window.innerHeight;
+      const size = Math.min(
+        window.innerWidth <= 768 ? window.innerWidth - 80 : window.innerWidth * 0.32,
+        340
+      );
+      canvas.width  = size;
+      canvas.height = size;
+    });
+
+    // ─── Floating particles ───────────────────────────────────────────────────
+    const container = document.getElementById('particles');
+    const particleColors = ['#ffd700','#ffaa00','#fff8dc','#a855f7','#06b6d4','#fbbf24'];
+    for (let i = 0; i < 30; i++) {
+      const p   = document.createElement('div');
+      p.className = 'particle';
+      const size  = Math.random() * 7 + 2;
+      const isSquare = Math.random() > 0.75;
+      p.style.cssText = `
+        width:${size}px; height:${size}px;
+        left:${Math.random() * 100}%;
+        bottom:0;
+        border-radius:${isSquare ? '2px' : '50%'};
+        background:${particleColors[Math.floor(Math.random() * particleColors.length)]};
+        --dur:${8 + Math.random() * 14}s;
+        --delay:-${Math.random() * 18}s;
+        opacity:0;
+        filter:blur(${Math.random() > 0.65 ? '1px' : '0'});
+      `;
+      container.appendChild(p);
+    }
+
+    // ─── Play button ──────────────────────────────────────────────────────────
+    document.getElementById('playBtn').addEventListener('click', function(e) {
+      e.preventDefault();
+      // Show loading overlay for brief effect, then navigate to code entry
+      const overlay = document.getElementById('loadOverlay');
+      overlay.classList.add('show');
+      // Briefly pause for dramatic effect, then go to code entry page
+      setTimeout(() => { window.location.href = '/'; }, 600);
+    });
+  </script>
+</body>
+</html>
