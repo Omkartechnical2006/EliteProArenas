@@ -1,46 +1,57 @@
-const Player      = require('../models/Player');
-const OfflineGame = require('../models/OfflineGame');
-const Faculty     = require('../models/Faculty');
-const Feedback    = require('../models/Feedback');
-const WheelPrize  = require('../models/WheelPrize');
+const Player        = require('../models/Player');
+const OfflineGame   = require('../models/OfflineGame');
+const Faculty       = require('../models/Faculty');
+const Feedback      = require('../models/Feedback');
+const WheelPrize    = require('../models/WheelPrize');
+const MysteryPrize  = require('../models/MysteryPrize');
+const GameSettings  = require('../models/GameSettings');
 
-const DEFAULT_PRIZES = [
-  'Keychain 🔑', 'Sticker Pack 🎨', 'Pen 🖊️', 'Notebook 📓',
-  'Water Bottle 💧', 'Chocolate 🍫', 'Tshirt 👕', 'Gift Hamper 🎁',
+const DEFAULT_WHEEL_PRIZES = [
+  'Keychain 🔑','Sticker Pack 🎨','Pen 🖊️','Notebook 📓',
+  'Water Bottle 💧','Chocolate 🍫','Tshirt 👕','Gift Hamper 🎁',
   'Better Luck Next Time 😅'
 ];
+const DEFAULT_MYSTERY_PRIZES = [
+  'Candy 🍬','Keychain 🔑','Sticker Pack 🎨','Pen 🖊️',
+  'Notebook 📓','Chocolate 🍫','Water Bottle 💧','Tshirt 👕',
+  'Gift Hamper 🎁','Lucky Draw 🍀','Better Luck Next Time 😅'
+];
 
-// ─── Seed default prizes if none exist ───────────────────────────────────────
 async function seedPrizesIfEmpty() {
-  const count = await WheelPrize.countDocuments();
-  if (count === 0) {
-    await WheelPrize.insertMany(
-      DEFAULT_PRIZES.map((name, i) => ({ name, order: i }))
-    );
-  }
+  const [wCount, mCount] = await Promise.all([
+    WheelPrize.countDocuments(),
+    MysteryPrize.countDocuments()
+  ]);
+  if (wCount === 0)
+    await WheelPrize.insertMany(DEFAULT_WHEEL_PRIZES.map((name, i) => ({ name, order: i })));
+  if (mCount === 0)
+    await MysteryPrize.insertMany(DEFAULT_MYSTERY_PRIZES.map((name, i) => ({ name, order: i })));
 }
 
-// ─── Auth Middleware ──────────────────────────────────────────────────────────
+async function getOrCreateSettings() {
+  let s = await GameSettings.findOne({ key: 'main' });
+  if (!s) s = await GameSettings.create({ key: 'main' });
+  return s;
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
 exports.isAuthenticated = (req, res, next) => {
   if (req.session && req.session.isAdmin) return next();
-  // For AJAX / API calls (DELETE, PATCH, POST with JSON accept) return 401 JSON
-  // so the frontend can handle it gracefully instead of getting a redirect HTML page
+  // For AJAX / API calls (DELETE, PATCH, POST) return JSON 401 so the
+  // frontend can handle session expiry gracefully instead of getting HTML.
   if (req.method !== 'GET') {
     return res.status(401).json({ success: false, error: 'Session expired. Please login again.', redirect: '/admin/login' });
   }
   res.redirect('/admin/login');
 };
 
-// ─── GET /admin/login ─────────────────────────────────────────────────────────
 exports.getLogin = (req, res) => {
   if (req.session && req.session.isAdmin) return res.redirect('/admin');
   res.render('adminLogin', { error: null });
 };
 
-// ─── POST /admin/login ────────────────────────────────────────────────────────
 exports.postLogin = (req, res) => {
-  const { password } = req.body;
-  if (password === process.env.ADMIN_PASSWORD) {
+  if (req.body.password === process.env.ADMIN_PASSWORD) {
     req.session.isAdmin = true;
     res.redirect('/admin');
   } else {
@@ -48,43 +59,55 @@ exports.postLogin = (req, res) => {
   }
 };
 
-// ─── GET /admin/logout ────────────────────────────────────────────────────────
 exports.logout = (req, res) => {
   req.session.destroy(() => res.redirect('/admin/login'));
 };
 
-// ─── Helper: load all common data ────────────────────────────────────────────
+// ─── Common data loader ───────────────────────────────────────────────────────
 async function loadAdminData() {
   await seedPrizesIfEmpty();
-  const [games, players, faculties, feedbacks, prizes] = await Promise.all([
+  const [games, players, faculties, feedbacks, prizes, mysteryPrizes, settings] = await Promise.all([
     OfflineGame.find().sort({ createdAt: -1 }),
     Player.find().sort({ createdAt: -1 }).limit(50),
     Faculty.find().sort({ facultyName: 1 }),
     Feedback.find()
-      .populate('userId', 'name type course uniqueCode assignedPrize')
+      .populate('userId', 'name type course uniqueCode assignedPrize gameType ticketPrice')
       .sort({ createdAt: -1 }),
-    WheelPrize.find().sort({ order: 1, createdAt: 1 })
+    WheelPrize.find().sort({ order: 1, createdAt: 1 }),
+    MysteryPrize.find().sort({ order: 1, createdAt: 1 }),
+    getOrCreateSettings()
   ]);
+
+  // Revenue analytics — group all players by date
+  const allPlayers = await Player.find().sort({ createdAt: -1 });
+  const revenueByDate = {};
+  allPlayers.forEach(p => {
+    const d   = new Date(p.createdAt);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    if (!revenueByDate[key]) revenueByDate[key] = { players: [], total: 0, wheelTotal: 0, mysteryTotal: 0 };
+    revenueByDate[key].players.push(p);
+    revenueByDate[key].total += (p.ticketPrice || 0);
+    if (p.gameType === 'mystery') revenueByDate[key].mysteryTotal += (p.ticketPrice || 0);
+    else revenueByDate[key].wheelTotal += (p.ticketPrice || 0);
+  });
+
+  const sortedDates  = Object.keys(revenueByDate).sort((a, b) => b.localeCompare(a));
+  const totalRevenue = allPlayers.reduce((s, p) => s + (p.ticketPrice || 0), 0);
   const totalFeedbacks = feedbacks.length;
   const avgStall = totalFeedbacks
-    ? (feedbacks.reduce((s, f) => s + f.stallRating, 0) / totalFeedbacks).toFixed(1)
-    : 'N/A';
-  return { games, players, faculties, feedbacks, prizes, totalFeedbacks, avgStall };
+    ? (feedbacks.reduce((s, f) => s + f.stallRating, 0) / totalFeedbacks).toFixed(1) : 'N/A';
+
+  return { games, players, faculties, feedbacks, prizes, mysteryPrizes, settings,
+           revenueByDate, sortedDates, totalRevenue, totalFeedbacks, avgStall };
 }
 
 // ─── GET /admin ───────────────────────────────────────────────────────────────
 exports.getAdminPanel = async (req, res) => {
   try {
-    // Read & clear flash data set by generateCode (PRG pattern)
-    const flash = req.session.flash || {};
-    delete req.session.flash;
-
-    const data = await loadAdminData();
-    res.render('admin', {
-      ...data,
-      generatedCode: flash.generatedCode || null,
-      newPlayer:     flash.newPlayer     || null,
-    });
+    const data  = await loadAdminData();
+    const flash = req.session.generatedFlash || null;
+    if (req.session.generatedFlash) delete req.session.generatedFlash;
+    res.render('admin', { ...data, generatedCode: flash?.code || null, newPlayer: flash?.player || null });
   } catch (err) {
     console.error(err);
     res.status(500).send('Server Error: ' + err.message);
@@ -96,108 +119,72 @@ exports.generateCode = async (req, res) => {
   try {
     const rawName = req.body.name;
     const name = Array.isArray(rawName)
-      ? rawName.find(n => n && n.trim()) || ''
-      : rawName;
-    const { type, course, assignedPrize } = req.body;
+      ? rawName.find(n => n && n.trim()) || '' : rawName;
+    const { type, course, assignedPrize, gameType } = req.body;
 
-    // Unique 4-digit code
+    const settings    = await getOrCreateSettings();
+    const ticketPrice = gameType === 'mystery' ? settings.mysteryPrice : settings.wheelPrice;
+
     let uniqueCode, exists = true;
     while (exists) {
       uniqueCode = Math.floor(1000 + Math.random() * 9000).toString();
-      const found = await Player.findOne({ uniqueCode });
-      if (!found) exists = false;
+      if (!await Player.findOne({ uniqueCode })) exists = false;
     }
 
-    const player = new Player({ name, type, course, uniqueCode, assignedPrize });
+    const player = new Player({ name, type, course, uniqueCode, assignedPrize,
+                                gameType: gameType || 'wheel', ticketPrice });
     await player.save();
 
-    // PRG pattern: store result in session flash and redirect to GET /admin
-    // This prevents duplicate player creation when the user refreshes the page.
-    req.session.flash = {
-      generatedCode: uniqueCode,
-      newPlayer: { name: player.name, assignedPrize: player.assignedPrize },
-    };
-    res.redirect('/admin');
+    req.session.generatedFlash = { code: uniqueCode, player };
+    req.session.save(() => res.redirect('/admin'));
   } catch (err) {
     console.error(err);
     res.status(500).send('Server Error: ' + err.message);
   }
 };
 
-// ─── POST /admin/games/add ────────────────────────────────────────────────────
+// ─── Games ────────────────────────────────────────────────────────────────────
 exports.addGame = async (req, res) => {
-  try {
-    await OfflineGame.create({ gameName: req.body.gameName });
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
+  try { await OfflineGame.create({ gameName: req.body.gameName }); res.json({ success: true }); }
+  catch (err) { res.status(500).json({ success: false, error: err.message }); }
 };
-
-// ─── DELETE /admin/games/:id ──────────────────────────────────────────────────
 exports.deleteGame = async (req, res) => {
-  try {
-    await OfflineGame.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
+  try { await OfflineGame.findByIdAndDelete(req.params.id); res.json({ success: true }); }
+  catch (err) { res.status(500).json({ success: false, error: err.message }); }
 };
-
-// ─── PATCH /admin/games/:id ───────────────────────────────────────────────────
 exports.toggleGame = async (req, res) => {
   try {
     const game = await OfflineGame.findById(req.params.id);
-    if (!game) return res.status(404).json({ success: false, error: 'Not found' });
-    game.isActive = !game.isActive;
-    await game.save();
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
+    if (!game) return res.status(404).json({ success: false });
+    game.isActive = !game.isActive; await game.save(); res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 };
 
-// ─── POST /admin/faculty/add ──────────────────────────────────────────────────
+// ─── Faculty ──────────────────────────────────────────────────────────────────
 exports.addFaculty = async (req, res) => {
   try {
     await Faculty.create({ facultyName: req.body.facultyName, department: req.body.department });
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 };
-
-// ─── DELETE /admin/faculty/:id ────────────────────────────────────────────────
 exports.deleteFaculty = async (req, res) => {
-  try {
-    await Faculty.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
+  try { await Faculty.findByIdAndDelete(req.params.id); res.json({ success: true }); }
+  catch (err) { res.status(500).json({ success: false, error: err.message }); }
 };
 
-// ─── DELETE /admin/players/:id ────────────────────────────────────────────────
+// ─── Players ──────────────────────────────────────────────────────────────────
 exports.deletePlayer = async (req, res) => {
-  try {
-    await Player.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
+  try { await Player.findByIdAndDelete(req.params.id); res.json({ success: true }); }
+  catch (err) { res.status(500).json({ success: false, error: err.message }); }
 };
 
-// ─── DELETE /admin/feedback/:id ───────────────────────────────────────────────
+// ─── Feedback ─────────────────────────────────────────────────────────────────
 exports.deleteFeedback = async (req, res) => {
-  try {
-    await Feedback.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
+  try { await Feedback.findByIdAndDelete(req.params.id); res.json({ success: true }); }
+  catch (err) { res.status(500).json({ success: false, error: err.message }); }
 };
 
-// ─── POST /admin/prizes/add ───────────────────────────────────────────────────
+// ─── Wheel Prizes ─────────────────────────────────────────────────────────────
 exports.addPrize = async (req, res) => {
   try {
     const { name } = req.body;
@@ -205,30 +192,51 @@ exports.addPrize = async (req, res) => {
     const count = await WheelPrize.countDocuments();
     await WheelPrize.create({ name: name.trim(), order: count });
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 };
-
-// ─── DELETE /admin/prizes/:id ─────────────────────────────────────────────────
 exports.deletePrize = async (req, res) => {
-  try {
-    await WheelPrize.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
+  try { await WheelPrize.findByIdAndDelete(req.params.id); res.json({ success: true }); }
+  catch (err) { res.status(500).json({ success: false, error: err.message }); }
 };
-
-// ─── POST /admin/prizes/reset ─────────────────────────────────────────────────
 exports.resetPrizes = async (req, res) => {
   try {
     await WheelPrize.deleteMany({});
-    await WheelPrize.insertMany(
-      DEFAULT_PRIZES.map((name, i) => ({ name, order: i }))
+    await WheelPrize.insertMany(DEFAULT_WHEEL_PRIZES.map((name, i) => ({ name, order: i })));
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+};
+
+// ─── Mystery Prizes ───────────────────────────────────────────────────────────
+exports.addMysteryPrize = async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) return res.json({ success: false, error: 'Name required' });
+    const count = await MysteryPrize.countDocuments();
+    await MysteryPrize.create({ name: name.trim(), order: count });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+};
+exports.deleteMysteryPrize = async (req, res) => {
+  try { await MysteryPrize.findByIdAndDelete(req.params.id); res.json({ success: true }); }
+  catch (err) { res.status(500).json({ success: false, error: err.message }); }
+};
+exports.resetMysteryPrizes = async (req, res) => {
+  try {
+    await MysteryPrize.deleteMany({});
+    await MysteryPrize.insertMany(DEFAULT_MYSTERY_PRIZES.map((name, i) => ({ name, order: i })));
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+};
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+exports.saveSettings = async (req, res) => {
+  try {
+    const { wheelPrice, mysteryPrice } = req.body;
+    await GameSettings.findOneAndUpdate(
+      { key: 'main' },
+      { wheelPrice: parseFloat(wheelPrice) || 0, mysteryPrice: parseFloat(mysteryPrice) || 0 },
+      { upsert: true, new: true }
     );
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 };

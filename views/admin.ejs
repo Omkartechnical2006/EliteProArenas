@@ -113,7 +113,10 @@
         <span>🎫</span> Code Generator
       </a>
       <a href="#section-prizes"  class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium" onclick="showTab('prizes',this)">
-        <span>🎁</span> Wheel Prizes
+        <span>🎡</span> Wheel Prizes
+      </a>
+      <a href="#section-mystery-prizes" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium" onclick="showTab('mystery-prizes',this)">
+        <span>🎁</span> Mystery Prizes
       </a>
       <a href="#section-games"   class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium" onclick="showTab('games',this)">
         <span>🎮</span> Manage Games
@@ -132,6 +135,12 @@
       </a>
       <a href="#section-qr"      class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium" onclick="showTab('qr',this)">
         <span>📲</span> QR / Share Link
+      </a>
+      <a href="#section-settings" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium" onclick="showTab('settings',this)">
+        <span>⚙️</span> Prices & Settings
+      </a>
+      <a href="#section-revenue"  class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium" onclick="showTab('revenue',this)">
+        <span>📈</span> Revenue Analytics
       </a>
     </nav>
 
@@ -160,8 +169,8 @@
           <div class="text-gray-500 text-xs">Players</div>
         </div>
         <div class="stat-card text-center px-5 py-3">
-          <div class="orbitron text-green-400 text-xl font-black"><%= games.filter(g=>g.isActive).length %></div>
-          <div class="text-gray-500 text-xs">Active Games</div>
+          <div class="orbitron text-green-400 text-xl font-black">₹<%= totalRevenue %></div>
+          <div class="text-gray-500 text-xs">Total Revenue</div>
         </div>
         <div class="stat-card text-center px-5 py-3">
           <div class="orbitron text-purple-400 text-xl font-black"><%= totalFeedbacks %></div>
@@ -181,7 +190,8 @@
       <div class="code-display mb-6">
         <p class="text-yellow-400/60 text-xs tracking-widest uppercase mb-2">Code Generated for <%= newPlayer.name %></p>
         <div class="code-number"><%= generatedCode %></div>
-        <p class="text-yellow-300/70 text-sm mt-2">Prize: <strong class="text-yellow-400"><%= newPlayer.assignedPrize %></strong></p>
+        <p class="text-yellow-300/70 text-sm mt-2">Game: <strong class="text-yellow-400"><%= newPlayer.gameType === 'mystery' ? '🎁 Mystery Box' : '🎡 Wheel' %></strong> &nbsp;|&nbsp; Prize: <strong class="text-yellow-400"><%= newPlayer.assignedPrize %></strong></p>
+        <% if (newPlayer.ticketPrice > 0) { %><p class="text-green-400/80 text-xs mt-1">Ticket Price: ₹<%= newPlayer.ticketPrice %></p><% } %>
         <p class="text-gray-500 text-xs mt-1">Hand this code to the participant</p>
       </div>
       <% } %>
@@ -226,15 +236,32 @@
               <input type="text" name="course" id="courseInput" class="input-field" placeholder="e.g. B.Tech CSE, B.Pharm"/>
             </div>
 
-            <!-- Assigned Prize -->
+            <!-- Game Type -->
+            <div>
+              <label class="text-gray-400 text-xs uppercase tracking-wider mb-2 block">Game Type *</label>
+              <select name="gameType" id="gameTypeSelect" class="input-field" onchange="handleGameTypeChange(this.value)" required>
+                <option value="wheel">🎡 Spin the Wheel</option>
+                <option value="mystery">🎁 Mystery Box</option>
+              </select>
+            </div>
+
+            <!-- Assigned Prize (filtered by game type) -->
             <div>
               <label class="text-gray-400 text-xs uppercase tracking-wider mb-2 block">Assign Prize (Rigged Outcome) *</label>
-              <select name="assignedPrize" class="input-field" required>
+              <select name="assignedPrize" id="prizeSelect" class="input-field" required>
                 <option value="">— Select Prize —</option>
                 <% prizes.forEach(p => { %>
-                <option value="<%= p.name %>"><%= p.name %></option>
+                <option value="<%= p.name %>" data-game="wheel"><%= p.name %></option>
+                <% }) %>
+                <% mysteryPrizes.forEach(p => { %>
+                <option value="<%= p.name %>" data-game="mystery" style="display:none"><%= p.name %></option>
                 <% }) %>
               </select>
+            </div>
+
+            <!-- Price Preview -->
+            <div id="pricePreview" class="p-3 bg-green-500/5 border border-green-500/20 rounded-xl">
+              <p class="text-green-400 text-xs">💰 Ticket Price: <strong id="priceDisplay">₹<%= settings.wheelPrice %></strong> (set in Prices & Settings)</p>
             </div>
 
             <button type="submit" class="btn-gold w-full mt-2 orbitron tracking-wider">
@@ -333,7 +360,50 @@
       </div>
     </div>
 
-    <!-- ══════════════ GAMES ══════════════ -->
+    <!-- ══════════════ MYSTERY BOX PRIZES ══════════════ -->
+    <div id="tab-mystery-prizes" class="hidden">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Add Mystery Prize -->
+        <div class="card p-6">
+          <h2 class="orbitron text-purple-400 font-bold text-sm tracking-wider mb-5 flex items-center gap-2">
+            <span>➕</span> ADD MYSTERY PRIZE
+          </h2>
+          <div class="space-y-3">
+            <input type="text" id="newMysteryPrizeName" class="input-field" placeholder='e.g. Candy 🍬' maxlength="40"/>
+            <button onclick="addMysteryPrize()" class="btn-gold w-full orbitron text-xs tracking-wider">ADD PRIZE</button>
+          </div>
+          <div class="mt-6 p-4 bg-red-500/5 border border-red-500/20 rounded-xl">
+            <p class="text-red-400/80 text-xs leading-relaxed mb-3">⚠️ Reset to factory defaults (removes all custom prizes)</p>
+            <button onclick="resetMysteryPrizes()" class="btn-red w-full text-xs">🔄 Reset to Defaults</button>
+          </div>
+          <div class="mt-4 p-4 bg-purple-500/5 border border-purple-500/15 rounded-xl">
+            <p class="text-purple-400/80 text-xs leading-relaxed">
+              💡 These prizes are shown inside the mystery boxes. Each box gets a <strong>unique</strong> prize — no repeats!
+            </p>
+          </div>
+        </div>
+
+        <!-- Mystery Prize List -->
+        <div class="lg:col-span-2 card p-6">
+          <h2 class="orbitron text-purple-400 font-bold text-sm tracking-wider mb-5 flex items-center gap-2">
+            <span>🎁</span> MYSTERY BOX PRIZES (<%= mysteryPrizes.length %>)
+          </h2>
+          <% if (mysteryPrizes.length === 0) { %>
+            <p class="text-gray-500 text-sm text-center py-8">No mystery prizes yet. Add some above!</p>
+          <% } else { %>
+          <div class="space-y-2" id="mysteryPrizeList">
+            <% mysteryPrizes.forEach(p => { %>
+            <div class="prize-chip" id="mystery-prize-<%= p._id %>">
+              <span class="text-gray-200 text-sm"><%= p.name %></span>
+              <button class="btn-red flex-shrink-0" onclick="deleteMysteryPrize('<%= p._id %>', this)">🗑️</button>
+            </div>
+            <% }) %>
+          </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
     <div id="tab-games" class="hidden">
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -675,6 +745,166 @@
       </div>
     </div>
 
+    <!-- ══════════════ SETTINGS ══════════════ -->
+    <div id="tab-settings" class="hidden">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- Price Settings -->
+        <div class="card p-6">
+          <h2 class="orbitron text-yellow-400 font-bold text-sm tracking-wider mb-6 flex items-center gap-2">
+            <span>💰</span> TICKET PRICES
+          </h2>
+          <div class="space-y-4">
+            <div>
+              <label class="text-gray-400 text-xs uppercase tracking-wider mb-2 block">🎡 Spin the Wheel — Price per ticket (₹)</label>
+              <input type="number" id="wheelPrice" class="input-field" min="0" step="1" value="<%= settings.wheelPrice %>" placeholder="0"/>
+            </div>
+            <div>
+              <label class="text-gray-400 text-xs uppercase tracking-wider mb-2 block">🎁 Mystery Box — Price per ticket (₹)</label>
+              <input type="number" id="mysteryPrice" class="input-field" min="0" step="1" value="<%= settings.mysteryPrice %>" placeholder="0"/>
+            </div>
+            <button onclick="saveSettings()" class="btn-gold w-full orbitron text-xs tracking-wider">💾 SAVE PRICES</button>
+          </div>
+          <div class="mt-6 p-4 bg-blue-500/5 border border-blue-500/15 rounded-xl">
+            <p class="text-blue-400/80 text-xs leading-relaxed">💡 Prices are automatically attached to each generated code and used in Revenue Analytics. Set to 0 for free games.</p>
+          </div>
+        </div>
+
+        <!-- Demo Links -->
+        <div class="card p-6">
+          <h2 class="orbitron text-yellow-400 font-bold text-sm tracking-wider mb-6 flex items-center gap-2">
+            <span>🖥️</span> DEMO / ATTRACT SCREENS
+          </h2>
+          <p class="text-gray-400 text-sm mb-4 leading-relaxed">Display these on a TV/monitor at your stall to attract participants.</p>
+          <div class="space-y-3">
+            <a href="/demo" target="_blank" class="flex items-center justify-between p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-xl hover:border-yellow-500/40 transition-all">
+              <div><p class="text-yellow-400 font-semibold text-sm">🎡 Wheel of Fortune Demo</p><p class="text-gray-500 text-xs mt-0.5">Spinning wheel attract screen</p></div>
+              <span class="text-yellow-400/60 text-xs">↗ Open</span>
+            </a>
+            <a href="/mystery-demo" target="_blank" class="flex items-center justify-between p-4 bg-purple-500/5 border border-purple-500/20 rounded-xl hover:border-purple-500/40 transition-all">
+              <div><p class="text-purple-400 font-semibold text-sm">🎁 Mystery Box Demo</p><p class="text-gray-500 text-xs mt-0.5">Mystery boxes attract screen</p></div>
+              <span class="text-purple-400/60 text-xs">↗ Open</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ REVENUE ══════════════ -->
+    <div id="tab-revenue" class="hidden">
+
+      <!-- Summary -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="stat-card text-center">
+          <div class="orbitron text-green-400 text-2xl font-black">₹<%= totalRevenue %></div>
+          <div class="text-gray-500 text-xs mt-1">Total Revenue</div>
+        </div>
+        <div class="stat-card text-center">
+          <div class="orbitron text-yellow-400 text-2xl font-black"><%= sortedDates.length %></div>
+          <div class="text-gray-500 text-xs mt-1">Active Days</div>
+        </div>
+        <div class="stat-card text-center">
+          <div class="orbitron text-cyan-400 text-2xl font-black">
+            ₹<%= Object.values(revenueByDate).reduce((s,d)=>s+d.wheelTotal,0) %>
+          </div>
+          <div class="text-gray-500 text-xs mt-1">🎡 Wheel Revenue</div>
+        </div>
+        <div class="stat-card text-center">
+          <div class="orbitron text-purple-400 text-2xl font-black">
+            ₹<%= Object.values(revenueByDate).reduce((s,d)=>s+d.mysteryTotal,0) %>
+          </div>
+          <div class="text-gray-500 text-xs mt-1">🎁 Mystery Revenue</div>
+        </div>
+      </div>
+
+      <% if (sortedDates.length === 0) { %>
+      <div class="card p-16 text-center">
+        <div class="text-6xl mb-4">📊</div>
+        <h3 class="orbitron text-gray-500 text-lg">No revenue data yet</h3>
+        <p class="text-gray-600 text-sm mt-2">Revenue data will appear once players with ticket prices are generated.</p>
+      </div>
+      <% } else { %>
+
+      <!-- Date selector -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Date List -->
+        <div class="card overflow-hidden">
+          <div class="p-4 border-b border-yellow-500/10">
+            <h3 class="orbitron text-yellow-400 font-bold text-xs tracking-wider">📅 SELECT DATE</h3>
+          </div>
+          <div class="divide-y divide-white/5" id="dateList">
+            <% sortedDates.forEach((date, i) => { %>
+            <button onclick="showDateDetail('<%= date %>')" id="date-btn-<%= date %>" class="w-full text-left px-4 py-3 hover:bg-yellow-500/5 transition-all <%= i===0 ? 'bg-yellow-500/5' : '' %>">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-white text-xs font-semibold"><%= new Date(date+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short',year:'numeric'}) %></p>
+                  <p class="text-gray-500 text-xs mt-0.5"><%= revenueByDate[date].players.length %> players</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-green-400 font-bold text-sm">₹<%= revenueByDate[date].total %></p>
+                </div>
+              </div>
+            </button>
+            <% }) %>
+          </div>
+        </div>
+
+        <!-- Day Detail -->
+        <div class="lg:col-span-2">
+          <% sortedDates.forEach((date, di) => { %>
+          <div id="detail-<%= date %>" class="<%= di===0 ? '' : 'hidden' %>">
+            <div class="grid grid-cols-3 gap-3 mb-4">
+              <div class="stat-card text-center py-3">
+                <div class="orbitron text-white text-lg font-black"><%= revenueByDate[date].players.length %></div>
+                <div class="text-gray-500 text-xs">Players</div>
+              </div>
+              <div class="stat-card text-center py-3">
+                <div class="orbitron text-green-400 text-lg font-black">₹<%= revenueByDate[date].total %></div>
+                <div class="text-gray-500 text-xs">Revenue</div>
+              </div>
+              <div class="stat-card text-center py-3">
+                <div class="orbitron text-yellow-400 text-sm font-black">🎡 ₹<%= revenueByDate[date].wheelTotal %><br/><span class="text-purple-400">🎁 ₹<%= revenueByDate[date].mysteryTotal %></span></div>
+                <div class="text-gray-500 text-xs">By Game</div>
+              </div>
+            </div>
+            <div class="card overflow-hidden">
+              <div class="p-4 border-b border-yellow-500/10">
+                <h3 class="orbitron text-yellow-400 font-bold text-xs tracking-wider">PLAYER DETAILS — <%= new Date(date+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'}) %></h3>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full">
+                  <thead><tr>
+                    <th class="text-left">Code</th>
+                    <th class="text-left">Name</th>
+                    <th class="text-left">Game</th>
+                    <th class="text-left">Prize</th>
+                    <th class="text-center">Price</th>
+                    <th class="text-center">Played</th>
+                  </tr></thead>
+                  <tbody>
+                    <% revenueByDate[date].players.forEach(p => { %>
+                    <tr>
+                      <td><span class="orbitron text-yellow-400 font-bold text-xs tracking-widest"><%= p.uniqueCode %></span></td>
+                      <td class="text-gray-200 text-xs font-medium"><%= p.name %></td>
+                      <td><span class="badge <%= p.gameType==='mystery' ? 'badge-purple' : 'badge-green' %>"><%= p.gameType==='mystery' ? '🎁 Mystery' : '🎡 Wheel' %></span></td>
+                      <td class="text-gray-400 text-xs max-w-[100px] truncate"><%= p.assignedPrize %></td>
+                      <td class="text-center text-green-400 font-bold text-sm">₹<%= p.ticketPrice || 0 %></td>
+                      <td class="text-center"><%= p.hasSpun ? '✅' : '⏳' %></td>
+                    </tr>
+                    <% }) %>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <% }) %>
+        </div>
+
+      </div>
+      <% } %>
+    </div>
+
   </main>
 
   <script>
@@ -718,16 +948,52 @@
 
     // ─── Tab Navigation ───
     const tabMap = {
-      gen: 'tab-gen', prizes: 'tab-prizes', games: 'tab-games',
-      faculty: 'tab-faculty', players: 'tab-players',
-      feedback: 'tab-feedback', qr: 'tab-qr'
+      gen: 'tab-gen', prizes: 'tab-prizes', 'mystery-prizes': 'tab-mystery-prizes',
+      games: 'tab-games', faculty: 'tab-faculty', players: 'tab-players',
+      feedback: 'tab-feedback', qr: 'tab-qr',
+      settings: 'tab-settings', revenue: 'tab-revenue'
     };
     function showTab(tabId, navEl) {
-      Object.values(tabMap).forEach(t => document.getElementById(t).classList.add('hidden'));
+      Object.values(tabMap).forEach(t => document.getElementById(t) && document.getElementById(t).classList.add('hidden'));
       document.getElementById(tabMap[tabId]).classList.remove('hidden');
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       if (navEl) navEl.classList.add('active');
       return false;
+    }
+
+    // ─── Game type change handler ───
+    const WHEEL_PRICE   = <%= settings.wheelPrice %>;
+    const MYSTERY_PRICE = <%= settings.mysteryPrice %>;
+    function handleGameTypeChange(val) {
+      const price = val === 'mystery' ? MYSTERY_PRICE : WHEEL_PRICE;
+      document.getElementById('priceDisplay').textContent = '₹' + price;
+
+      // Filter prize dropdown — show only prizes for the selected game type
+      const sel = document.getElementById('prizeSelect');
+      sel.value = '';
+      Array.from(sel.options).forEach(opt => {
+        if (!opt.dataset.game) return; // placeholder
+        opt.style.display = (opt.dataset.game === val) ? '' : 'none';
+      });
+    }
+    // Init prize dropdown on page load (default = wheel)
+    handleGameTypeChange('wheel');
+
+    // ─── Settings save ───
+    async function saveSettings() {
+      const wheel   = document.getElementById('wheelPrice').value;
+      const mystery = document.getElementById('mysteryPrice').value;
+      const json = await doFetch('/admin/settings', 'POST', { wheelPrice: wheel, mysteryPrice: mystery });
+      if (json.success) showToast('Prices saved!');
+      else showToast(json.error || 'Failed to save', 'error');
+    }
+
+    // ─── Revenue date detail ───
+    function showDateDetail(date) {
+      document.querySelectorAll('[id^="detail-"]').forEach(el => el.classList.add('hidden'));
+      document.getElementById('detail-' + date)?.classList.remove('hidden');
+      document.querySelectorAll('[id^="date-btn-"]').forEach(el => el.classList.remove('bg-yellow-500/5'));
+      document.getElementById('date-btn-' + date)?.classList.add('bg-yellow-500/5');
     }
 
     // ─── Player Type Toggle ───
@@ -817,6 +1083,39 @@
         const res = await fetch('/admin/prizes/reset', { method: 'POST' });
         const json = await res.json();
         if (json.success) { showToast('Prizes reset!'); setTimeout(() => location.reload(), 800); }
+        else showToast(json.error || 'Failed', 'error');
+      } catch(e) { showToast('Error', 'error'); }
+    }
+
+    // ─── MYSTERY PRIZES ───
+    async function addMysteryPrize() {
+      const name = document.getElementById('newMysteryPrizeName').value.trim();
+      if (!name) { showToast('Enter a prize name', 'error'); return; }
+      try {
+        const res = await fetch('/admin/mystery-prizes/add', { method: 'POST', body: new URLSearchParams({ name }) });
+        const json = await res.json();
+        if (json.success) { showToast('Mystery prize added!'); setTimeout(() => location.reload(), 800); }
+        else showToast(json.error || 'Failed', 'error');
+      } catch(e) { showToast('Error', 'error'); }
+    }
+
+    async function deleteMysteryPrize(id, btn) {
+      if (!confirm('Remove this mystery prize?')) return;
+      try {
+        const json = await doFetch(`/admin/mystery-prizes/${id}`, 'DELETE');
+        if (json.success) {
+          document.getElementById(`mystery-prize-${id}`)?.remove();
+          showToast('Mystery prize removed!');
+        } else showToast(json.error || 'Failed', 'error');
+      } catch(e) { showToast('Error', 'error'); }
+    }
+
+    async function resetMysteryPrizes() {
+      if (!confirm('Reset mystery prizes to defaults?')) return;
+      try {
+        const res = await fetch('/admin/mystery-prizes/reset', { method: 'POST' });
+        const json = await res.json();
+        if (json.success) { showToast('Mystery prizes reset!'); setTimeout(() => location.reload(), 800); }
         else showToast(json.error || 'Failed', 'error');
       } catch(e) { showToast('Error', 'error'); }
     }
@@ -921,7 +1220,8 @@
       const map = {
         '#section-gen':'gen', '#section-prizes':'prizes', '#section-games':'games',
         '#section-faculty':'faculty', '#section-players':'players',
-        '#section-feedback':'feedback', '#section-qr':'qr'
+        '#section-feedback':'feedback', '#section-qr':'qr',
+        '#section-settings':'settings', '#section-revenue':'revenue'
       };
       if (hash && map[hash]) {
         const navEl = document.querySelector(`a[href="${hash}"]`);

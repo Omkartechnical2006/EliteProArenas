@@ -14,14 +14,18 @@ exports.submitCode = async (req, res) => {
     if (!player) {
       return res.render('index', { error: '❌ Invalid code. Please check and try again.' });
     }
-
     if (player.hasSpun) {
       return res.render('index', { error: '⚠️ This code has already been used!' });
     }
 
+    // Route to correct game based on game type
+    if (player.gameType === 'mystery') {
+      return res.redirect(`/game/mystery/${player.uniqueCode}`);
+    }
     res.redirect(`/game/wheel/${player.uniqueCode}`);
   } catch (err) {
     console.error(err);
     res.render('index', { error: 'Server error. Please try again.' });
   }
 };
+

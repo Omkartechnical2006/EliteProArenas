@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mystery Box Demo | Elite Pro Arenas</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Inter',sans-serif; background:#06020f; color:#e8e0f0; overflow:hidden; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center; zoom:1.25; }
+    .orbitron { font-family:'Orbitron',monospace; }
+
+    #starCanvas { position:fixed; inset:0; z-index:0; }
+    .glow1 { position:fixed; top:-80px; right:-80px; width:500px; height:500px; background:radial-gradient(circle,rgba(168,85,247,0.1) 0%,transparent 65%); pointer-events:none; z-index:1; animation:breathe 4s ease-in-out infinite; }
+    .glow2 { position:fixed; bottom:-100px; left:-80px; width:500px; height:500px; background:radial-gradient(circle,rgba(6,182,212,0.07) 0%,transparent 65%); pointer-events:none; z-index:1; animation:breathe 6s ease-in-out infinite reverse; }
+    @keyframes breathe { 0%,100%{opacity:0.7;transform:scale(1)} 50%{opacity:1;transform:scale(1.1)} }
+
+    /* Scene */
+    .scene { position:relative; z-index:10; display:flex; align-items:center; justify-content:center; gap:clamp(30px,5vw,80px); width:100vw; padding:0 40px; }
+
+    /* Boxes side */
+    .boxes-side { display:flex; flex-direction:column; align-items:center; gap:16px; flex-shrink:0; }
+    .demo-box-grid {
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:clamp(8px,1.5vw,16px);
+    }
+    .demo-box {
+      width:clamp(60px,8.5vw,108px); height:clamp(60px,8.5vw,108px);
+      border-radius:16px; position:relative;
+      background:linear-gradient(135deg,#1a0535,#0d0220,#1a0535);
+      border:2px solid rgba(192,132,252,0.35);
+      box-shadow:0 8px 24px rgba(168,85,247,0.25), inset 0 0 20px rgba(168,85,247,0.05);
+      display:flex; align-items:center; justify-content:center; flex-direction:column;
+      animation: boxFloat var(--dur,3s) ease-in-out var(--delay,0s) infinite;
+      cursor:default; overflow:hidden;
+    }
+    .demo-box::before {
+      content:''; position:absolute; inset:-1px;
+      border-radius:16px; padding:1px;
+      background:linear-gradient(135deg,rgba(192,132,252,0.6),transparent,rgba(192,132,252,0.6));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+    }
+    @keyframes boxFloat { 0%,100%{transform:translateY(0) rotate(-1deg)} 50%{transform:translateY(-10px) rotate(1deg)} }
+    .demo-box.open { border-color:rgba(255,215,0,0.7); box-shadow:0 0 30px rgba(255,215,0,0.4); background:linear-gradient(135deg,#1a1400,#2a2000,#1a1400); animation:openGlow 2s ease-in-out infinite; }
+    @keyframes openGlow { 0%,100%{box-shadow:0 0 20px rgba(255,215,0,0.4)} 50%{box-shadow:0 0 50px rgba(255,215,0,0.7)} }
+
+    .box-ribbon-h { position:absolute; top:50%; left:0; right:0; height:3px; background:linear-gradient(90deg,transparent,rgba(240,171,252,0.5),transparent); transform:translateY(-50%); }
+    .box-ribbon-v { position:absolute; left:50%; top:0; bottom:0; width:3px; background:linear-gradient(180deg,transparent,rgba(240,171,252,0.5),transparent); transform:translateX(-50%); }
+    .box-q { font-size:clamp(1.4rem,3vw,2.2rem); filter:drop-shadow(0 0 6px rgba(192,132,252,0.8)); }
+    .box-prize { font-size:clamp(1.2rem,2.5vw,1.8rem); animation:prizeFloat 2s ease-in-out infinite; }
+    @keyframes prizeFloat { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-6px) scale(1.1)} }
+    .box-prize-label { font-size:clamp(0.4rem,1vw,0.6rem); color:rgba(255,215,0,0.8); font-weight:700; text-align:center; margin-top:2px; }
+
+    /* Text side */
+    .text-side { display:flex; flex-direction:column; align-items:flex-start; max-width:460px; }
+    .badge { display:inline-flex; align-items:center; gap:8px; background:rgba(168,85,247,0.12); border:1px solid rgba(168,85,247,0.4); border-radius:50px; padding:6px 18px; font-size:0.7rem; letter-spacing:0.2em; text-transform:uppercase; color:#c084fc; margin-bottom:20px; animation:fadePulse 2.5s ease-in-out infinite; }
+    @keyframes fadePulse { 0%,100%{opacity:0.7} 50%{opacity:1} }
+    .main-title { font-family:'Orbitron',monospace; font-size:clamp(2rem,5vw,4rem); font-weight:900; line-height:1; margin-bottom:10px; background:linear-gradient(135deg,#c084fc 0%,#f0abfc 40%,#c084fc 60%,#a855f7 100%); background-size:200% auto; -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; animation:shimmer 3s linear infinite; }
+    @keyframes shimmer { 0%{background-position:0% center} 100%{background-position:200% center} }
+    .sub-title { font-family:'Orbitron',monospace; font-size:clamp(0.9rem,2vw,1.5rem); font-weight:700; color:rgba(255,255,255,0.8); letter-spacing:0.08em; margin-bottom:8px; }
+    .tagline { font-size:clamp(0.78rem,1.5vw,0.95rem); color:rgba(255,255,255,0.35); letter-spacing:0.15em; text-transform:uppercase; margin-bottom:36px; }
+
+    /* Prize chips */
+    .prizes-scroll { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:40px; max-width:420px; }
+    .prize-chip { background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.3); border-radius:50px; padding:4px 14px; font-size:0.77rem; color:rgba(192,132,252,0.9); animation:chipFloat var(--d,3s) ease-in-out var(--dl,0s) infinite; }
+    @keyframes chipFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+
+    /* PLAY Button */
+    .play-btn { position:relative; display:inline-flex; align-items:center; justify-content:center; gap:12px; padding:20px 56px; background:linear-gradient(135deg,#a855f7,#7c3aed,#a855f7); background-size:200% auto; color:#fff; font-family:'Orbitron',monospace; font-weight:900; font-size:1.3rem; letter-spacing:0.1em; border:none; border-radius:60px; cursor:pointer; text-decoration:none; transition:all 0.3s; animation:shimmer 2s linear infinite, pulseBtn 2s ease-in-out infinite; box-shadow:0 0 30px rgba(168,85,247,0.6),0 0 60px rgba(168,85,247,0.2),0 8px 32px rgba(0,0,0,0.4); }
+    @keyframes pulseBtn { 0%,100%{box-shadow:0 0 30px rgba(168,85,247,0.6)} 50%{box-shadow:0 0 70px rgba(168,85,247,1)} }
+    .play-btn:hover { transform:scale(1.06); }
+    .btn-ring { position:absolute; inset:-14px; border:2px solid rgba(168,85,247,0.4); border-radius:65px; animation:ringPulse 2s ease-out infinite; }
+    .btn-ring2 { position:absolute; inset:-28px; border:1px solid rgba(168,85,247,0.2); border-radius:75px; animation:ringPulse 2s ease-out infinite 0.5s; }
+    @keyframes ringPulse { 0%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(1.15)} }
+    .hint-text { margin-top:16px; font-size:0.77rem; color:rgba(255,255,255,0.2); letter-spacing:0.1em; text-align:center; }
+
+    /* Ticker */
+    .ticker { position:fixed; bottom:0; left:0; right:0; background:rgba(168,85,247,0.08); border-top:1px solid rgba(168,85,247,0.2); padding:10px 0; overflow:hidden; z-index:20; }
+    .ticker-inner { white-space:nowrap; animation:tickerMove 28s linear infinite; font-family:'Orbitron',monospace; font-size:0.72rem; letter-spacing:0.2em; color:rgba(192,132,252,0.6); }
+    @keyframes tickerMove { from{transform:translateX(100vw)} to{transform:translateX(-200%)} }
+
+    /* Particle */
+    .particle { position:fixed; border-radius:50%; pointer-events:none; z-index:2; animation:floatUp var(--dur,8s) linear var(--delay,0s) infinite; opacity:0; }
+    @keyframes floatUp { 0%{transform:translateY(0) rotate(0);opacity:0} 10%{opacity:0.7} 90%{opacity:0.3} 100%{transform:translateY(-100vh) rotate(360deg);opacity:0} }
+
+    @media(max-width:768px) {
+      .scene { flex-direction:column; gap:20px; }
+      .text-side { align-items:center; text-align:center; }
+      .prizes-scroll { justify-content:center; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="starCanvas"></canvas>
+  <div class="glow1"></div>
+  <div class="glow2"></div>
+  <div id="particles"></div>
+
+  <div class="scene">
+
+    <!-- Boxes -->
+    <div class="boxes-side">
+      <div class="demo-box-grid" id="demoGrid"></div>
+    </div>
+
+    <!-- Text + CTA -->
+    <div class="text-side">
+      <div class="badge">🎁 Elite Pro Arenas</div>
+      <div class="main-title">MYSTERY<br>BOX</div>
+      <div class="sub-title">CHALLENGE</div>
+      <div class="tagline">Pick a box. Win a prize. Every. Time.</div>
+
+      <div class="prizes-scroll" id="prizeChips"></div>
+
+      <a href="/" class="play-btn" id="playBtn">
+        <div class="btn-ring"></div>
+        <div class="btn-ring2"></div>
+        <span>🎁</span> PLAY NOW
+      </a>
+      <div class="hint-text">Get your code from the counter · Enter · Pick · Win!</div>
+    </div>
+  </div>
+
+  <!-- Ticker -->
+  <div class="ticker">
+    <div class="ticker-inner">
+      🎁 MYSTERY BOX CHALLENGE &nbsp;•&nbsp; 6 BOXES — ONLY ONE IS YOURS &nbsp;•&nbsp;
+      PICK THE RIGHT BOX AND WIN AMAZING PRIZES &nbsp;•&nbsp;
+      GET YOUR CODE FROM THE STALL COORDINATOR &nbsp;•&nbsp;
+      EVERYONE WINS A PRIZE &nbsp;•&nbsp; ELITE PRO ARENAS &nbsp;•&nbsp;
+      MYSTERY BOX CHALLENGE — DARE TO PICK? &nbsp;•&nbsp;
+    </div>
+  </div>
+
+  <script>
+    // Prizes fetched from database by the server
+    const DEMO_PRIZES = <%- JSON.stringify(prizes && prizes.length > 0 ? prizes : ['Gift Hamper 🎁','Keychain 🔑','Chocolate 🍫','Pen 🖊️','Sticker Pack 🎨','Tshirt 👕','Notebook 📓','Water Bottle 💧','Lucky Draw 🍀']) %>;
+
+    // ── Demo boxes ── (BOX_COUNT = number of prizes in DB)
+    const grid = document.getElementById('demoGrid');
+    const BOX_COUNT = DEMO_PRIZES.length;
+
+    // Set grid columns: 3 for <=9, 4 for 10-12, 5 for 13+
+    const cols = BOX_COUNT <= 9 ? 3 : BOX_COUNT <= 12 ? 4 : 5;
+    grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+    // Pick 2 random open boxes initially
+    const allIdx = Array.from({length: BOX_COUNT}, (_, i) => i);
+    const shuffled = allIdx.sort(() => Math.random() - 0.5);
+    const openBoxIdx = shuffled.slice(0, Math.min(2, BOX_COUNT));
+
+    function parsePrize(p) {
+      const parts = p.split(' ');
+      const last = parts[parts.length - 1];
+      const isEmoji = /\p{Emoji}/u.test(last);
+      return {
+        emoji: (isEmoji && parts.length > 1) ? last : '\uD83C\uDF81',
+        label: (isEmoji && parts.length > 1) ? parts.slice(0, -1).join(' ') : p
+      };
+    }
+
+    for (let i = 0; i < BOX_COUNT; i++) {
+      const box = document.createElement('div');
+      box.className = 'demo-box' + (openBoxIdx.includes(i) ? ' open' : '');
+      box.style.setProperty('--dur', `${3 + (i % 3)}s`);
+      box.style.setProperty('--delay', `${(i * 0.25).toFixed(2)}s`);
+
+      if (openBoxIdx.includes(i)) {
+        // Show the actual prize for this box index
+        const { emoji, label } = parsePrize(DEMO_PRIZES[i]);
+        box.innerHTML = `<div class="box-prize">${emoji}</div><div class="box-prize-label">${label}</div>`;
+      } else {
+        box.innerHTML = `<div class="box-ribbon-h"></div><div class="box-ribbon-v"></div><div class="box-q">\u2753</div>`;
+      }
+      grid.appendChild(box);
+    }
+
+    // Auto cycle: open a new box every 2.2s, showing its actual prize
+    let cyclePos = 0;
+    const cycleQueue = [...allIdx].filter(i => !openBoxIdx.includes(i));
+    // shuffle cycleQueue so it opens randomly
+    cycleQueue.sort(() => Math.random() - 0.5);
+
+    setInterval(() => {
+      const boxes = document.querySelectorAll('.demo-box');
+      // Close all non-permanently-open boxes
+      boxes.forEach((b, i) => {
+        if (openBoxIdx.includes(i)) return;
+        b.classList.remove('open');
+        b.innerHTML = `<div class="box-ribbon-h"></div><div class="box-ribbon-v"></div><div class="box-q">\u2753</div>`;
+      });
+
+      // Open the next box in the cycle
+      if (cycleQueue.length > 0) {
+        const nextIdx = cycleQueue[cyclePos % cycleQueue.length];
+        cyclePos++;
+        const b = boxes[nextIdx];
+        if (b) {
+          b.classList.add('open');
+          const { emoji, label } = parsePrize(DEMO_PRIZES[nextIdx]);
+          b.innerHTML = `<div class="box-prize">${emoji}</div><div class="box-prize-label">${label}</div>`;
+        }
+      }
+    }, 2200);
+
+    // ── Prize chips (all from DB) ──
+    const chipsWrap = document.getElementById('prizeChips');
+    DEMO_PRIZES.forEach((p, i) => {
+      const c = document.createElement('div');
+      c.className = 'prize-chip';
+      c.textContent = p;
+      c.style.setProperty('--d', `${3+(i%4)}s`);
+      c.style.setProperty('--dl', `${i*0.25}s`);
+      chipsWrap.appendChild(c);
+    });
+
+    // ── Stars ──
+    const sc = document.getElementById('starCanvas');
+    const sctx = sc.getContext('2d');
+    sc.width = window.innerWidth; sc.height = window.innerHeight;
+    const stars = Array.from({length:180}, () => ({
+      x:Math.random()*sc.width, y:Math.random()*sc.height,
+      r:Math.random()*1.3+0.2, alpha:Math.random(), speed:Math.random()*0.006+0.002
+    }));
+    (function drawStars() {
+      sctx.clearRect(0,0,sc.width,sc.height);
+      stars.forEach(s => { s.alpha+=s.speed; if(s.alpha>1||s.alpha<0)s.speed*=-1; sctx.beginPath(); sctx.arc(s.x,s.y,s.r,0,Math.PI*2); sctx.fillStyle=`rgba(168,85,247,${s.alpha*0.5})`; sctx.fill(); });
+      requestAnimationFrame(drawStars);
+    })();
+    window.addEventListener('resize', () => { sc.width=window.innerWidth; sc.height=window.innerHeight; });
+
+    // ── Particles ──
+    const pCont = document.getElementById('particles');
+    const pColors = ['#a855f7','#7c3aed','#c084fc','#f0abfc','#6d28d9'];
+    for (let i = 0; i < 22; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size = Math.random()*5+2;
+      p.style.cssText = `width:${size}px;height:${size}px;left:${Math.random()*100}%;bottom:0;background:${pColors[i%pColors.length]};--dur:${8+Math.random()*12}s;--delay:-${Math.random()*15}s;`;
+      pCont.appendChild(p);
+    }
+
+    document.getElementById('playBtn').addEventListener('click', function() { this.innerHTML = '⏳ Loading...'; });
+  </script>
+</body>
+</html>
