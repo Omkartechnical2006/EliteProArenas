@@ -93,6 +93,42 @@
     .toast.show { transform:translateY(0); opacity:1; }
     .toast.success { border-color:rgba(34,197,94,0.5); }
     .toast.error   { border-color:rgba(239,68,68,0.5); }
+    /* Ref Dial styles */
+    .ref-dial-box {
+      background: linear-gradient(135deg, #0a0a18, #101025);
+      border: 2px solid rgba(255,215,0,0.25); border-radius:20px;
+      padding: 36px; text-align:center;
+      box-shadow: 0 0 60px rgba(255,215,0,0.08);
+    }
+    .ref-dial-input {
+      background: rgba(0,0,0,0.6); border: 2px solid rgba(255,215,0,0.4);
+      color:#ffd700; border-radius:16px; padding:20px 28px;
+      width:100%; font-size:2rem; font-family:'Orbitron',monospace;
+      text-align:center; letter-spacing:0.3em; transition:all 0.3s;
+      font-weight:900;
+    }
+    .ref-dial-input:focus {
+      outline:none; border-color:#ffd700;
+      box-shadow: 0 0 30px rgba(255,215,0,0.3);
+    }
+    .ref-dial-input::placeholder { color: rgba(255,215,0,0.2); font-size:1.2rem; letter-spacing:0.1em; }
+    .ref-num-badge {
+      display:inline-flex; align-items:center; justify-content:center;
+      width:36px; height:36px; border-radius:10px; flex-shrink:0;
+      font-family:'Orbitron',monospace; font-weight:900; font-size:13px;
+      background:rgba(255,215,0,0.12); border:1px solid rgba(255,215,0,0.3);
+      color:#ffd700;
+    }
+    .ref-num-badge.mystery {
+      background:rgba(168,85,247,0.12); border-color:rgba(168,85,247,0.3);
+      color:#a855f7;
+    }
+    .ref-row {
+      display:flex; align-items:center; gap:12px; padding:10px 14px;
+      border-radius:10px; border:1px solid rgba(255,255,255,0.04);
+      background:rgba(0,0,0,0.2); transition:background 0.2s;
+    }
+    .ref-row:hover { background:rgba(255,215,0,0.04); border-color:rgba(255,215,0,0.12); }
   </style>
 </head>
 <body class="flex min-h-screen">
@@ -142,6 +178,9 @@
       <a href="#section-revenue"  class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium" onclick="showTab('revenue',this)">
         <span>📈</span> Revenue Analytics
       </a>
+      <a href="#section-refdial"  class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium" onclick="showTab('refdial',this)">
+        <span>⚡</span> Ref Dial
+      </a>
     </nav>
 
     <div class="px-6 mt-auto pt-6 border-t border-yellow-500/10 space-y-3">
@@ -190,7 +229,7 @@
       <div class="code-display mb-6">
         <p class="text-yellow-400/60 text-xs tracking-widest uppercase mb-2">Code Generated for <%= newPlayer.name %></p>
         <div class="code-number"><%= generatedCode %></div>
-        <p class="text-yellow-300/70 text-sm mt-2">Game: <strong class="text-yellow-400"><%= newPlayer.gameType === 'mystery' ? '🎁 Mystery Box' : '🎡 Wheel' %></strong> &nbsp;|&nbsp; Prize: <strong class="text-yellow-400"><%= newPlayer.assignedPrize %></strong></p>
+        <p class="text-yellow-300/70 text-sm mt-2">Game: <strong class="text-yellow-400"><%= newPlayer.gameType === 'mystery' ? '🎁 Mystery Box' : '🎡 Wheel' %></strong></p>
         <% if (newPlayer.ticketPrice > 0) { %><p class="text-green-400/80 text-xs mt-1">Ticket Price: ₹<%= newPlayer.ticketPrice %></p><% } %>
         <p class="text-gray-500 text-xs mt-1">Hand this code to the participant</p>
       </div>
@@ -204,7 +243,7 @@
             <span>🎫</span> GENERATE PLAYER CODE
           </h2>
 
-          <form action="/admin/generate-code" method="POST" class="space-y-4">
+          <form id="generateForm" action="/admin/generate-code" method="POST" class="space-y-4" onsubmit="return resolveRefAndSubmit(event)">
 
             <!-- Player Type -->
             <div>
@@ -245,18 +284,21 @@
               </select>
             </div>
 
-            <!-- Assigned Prize (filtered by game type) -->
+            <!-- Ref ID (replaces Prize dropdown — looks innocent) -->
             <div>
-              <label class="text-gray-400 text-xs uppercase tracking-wider mb-2 block">Assign Prize (Rigged Outcome) *</label>
-              <select name="assignedPrize" id="prizeSelect" class="input-field" required>
-                <option value="">— Select Prize —</option>
-                <% prizes.forEach(p => { %>
-                <option value="<%= p.name %>" data-game="wheel"><%= p.name %></option>
-                <% }) %>
-                <% mysteryPrizes.forEach(p => { %>
-                <option value="<%= p.name %>" data-game="mystery" style="display:none"><%= p.name %></option>
-                <% }) %>
-              </select>
+              <label class="text-gray-400 text-xs uppercase tracking-wider mb-2 block">Ref ID *</label>
+              <input
+                type="number"
+                id="genRefId"
+                class="input-field"
+                placeholder="Enter reference number"
+                min="1"
+                autocomplete="off"
+                required
+              />
+              <!-- Hidden field resolved at submit time -->
+              <input type="hidden" name="assignedPrize" id="genAssignedPrize" />
+              <input type="hidden" name="resolvedGameType" id="genResolvedGameType" />
             </div>
 
             <!-- Price Preview -->
@@ -270,7 +312,7 @@
           </form>
         </div>
 
-        <!-- Instructions -->
+        <!-- Instructions (neutral wording — safe to show publicly) -->
         <div class="card p-6">
           <h2 class="orbitron text-yellow-400 font-bold text-sm tracking-wider mb-5 flex items-center gap-2">
             <span>📋</span> HOW IT WORKS
@@ -279,35 +321,42 @@
             <div class="flex gap-3">
               <div class="w-8 h-8 rounded-full bg-yellow-500/20 border border-yellow-500/40 flex-shrink-0 flex items-center justify-center text-yellow-400 text-sm font-bold">1</div>
               <div>
-                <p class="text-gray-200 text-sm font-medium">Select Type & Fill Name</p>
-                <p class="text-gray-500 text-xs mt-0.5">Faculty names auto-suggest from the database</p>
+                <p class="text-gray-200 text-sm font-medium">Select Participant Type</p>
+                <p class="text-gray-500 text-xs mt-0.5">Choose Student or Faculty — faculty names pull from the directory</p>
               </div>
             </div>
             <div class="flex gap-3">
               <div class="w-8 h-8 rounded-full bg-yellow-500/20 border border-yellow-500/40 flex-shrink-0 flex items-center justify-center text-yellow-400 text-sm font-bold">2</div>
               <div>
-                <p class="text-gray-200 text-sm font-medium">Choose the Prize</p>
-                <p class="text-gray-500 text-xs mt-0.5">The wheel will be rigged to stop exactly on this prize</p>
+                <p class="text-gray-200 text-sm font-medium">Enter Participant Details</p>
+                <p class="text-gray-500 text-xs mt-0.5">Fill name, course/department, and select the game they'll play</p>
               </div>
             </div>
             <div class="flex gap-3">
               <div class="w-8 h-8 rounded-full bg-yellow-500/20 border border-yellow-500/40 flex-shrink-0 flex items-center justify-center text-yellow-400 text-sm font-bold">3</div>
               <div>
-                <p class="text-gray-200 text-sm font-medium">Share the 4-Digit Code</p>
-                <p class="text-gray-500 text-xs mt-0.5">Participant enters this on the main screen to spin</p>
+                <p class="text-gray-200 text-sm font-medium">Enter the Ref ID</p>
+                <p class="text-gray-500 text-xs mt-0.5">System reference number used to log and track this entry</p>
               </div>
             </div>
             <div class="flex gap-3">
               <div class="w-8 h-8 rounded-full bg-yellow-500/20 border border-yellow-500/40 flex-shrink-0 flex items-center justify-center text-yellow-400 text-sm font-bold">4</div>
               <div>
-                <p class="text-gray-200 text-sm font-medium">Feedback is Collected</p>
-                <p class="text-gray-500 text-xs mt-0.5">After spinning, participants are auto-redirected to feedback</p>
+                <p class="text-gray-200 text-sm font-medium">Generate & Hand Over Code</p>
+                <p class="text-gray-500 text-xs mt-0.5">A unique 4-digit code is issued — participant uses it to play</p>
+              </div>
+            </div>
+            <div class="flex gap-3">
+              <div class="w-8 h-8 rounded-full bg-yellow-500/20 border border-yellow-500/40 flex-shrink-0 flex items-center justify-center text-yellow-400 text-sm font-bold">5</div>
+              <div>
+                <p class="text-gray-200 text-sm font-medium">Feedback Collected Automatically</p>
+                <p class="text-gray-500 text-xs mt-0.5">After playing, participants are redirected to the feedback form</p>
               </div>
             </div>
           </div>
-          <div class="mt-6 p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-xl">
-            <p class="text-yellow-400/80 text-xs leading-relaxed">
-              ⚠️ <strong>Rigged Mode:</strong> The wheel animation looks random but is mathematically guaranteed to land on the prize you select above.
+          <div class="mt-6 p-4 bg-blue-500/5 border border-blue-500/15 rounded-xl">
+            <p class="text-blue-400/70 text-xs leading-relaxed">
+              💡 Each code is unique and single-use. Codes are stored in the system and linked to the participant's session.
             </p>
           </div>
         </div>
@@ -777,7 +826,7 @@
           </h2>
           <p class="text-gray-400 text-sm mb-4 leading-relaxed">Display these on a TV/monitor at your stall to attract participants.</p>
           <div class="space-y-3">
-            <a href="/demo" target="_blank" class="flex items-center justify-between p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-xl hover:border-yellow-500/40 transition-all">
+            <a href="/wheel-demo" target="_blank" class="flex items-center justify-between p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-xl hover:border-yellow-500/40 transition-all">
               <div><p class="text-yellow-400 font-semibold text-sm">🎡 Wheel of Fortune Demo</p><p class="text-gray-500 text-xs mt-0.5">Spinning wheel attract screen</p></div>
               <span class="text-yellow-400/60 text-xs">↗ Open</span>
             </a>
@@ -905,6 +954,99 @@
       <% } %>
     </div>
 
+    <!-- ══════════════ REF DIAL ══════════════ -->
+    <div id="tab-refdial" class="hidden">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- Dial Input Panel -->
+        <div class="card p-8 flex flex-col items-center justify-center gap-6">
+          <div class="text-center">
+            <div class="orbitron text-yellow-400 font-black text-sm tracking-widest mb-1">⚡ REF DIAL</div>
+            <p class="text-gray-600 text-xs tracking-widest">Enter reference ID to configure</p>
+          </div>
+
+          <div class="ref-dial-box w-full">
+            <p class="text-gray-600 text-xs tracking-[0.2em] uppercase mb-6">Reference ID</p>
+            <input
+              type="number"
+              id="refDialInput"
+              class="ref-dial-input"
+              placeholder="_ _ _"
+              min="1"
+              autocomplete="off"
+              spellcheck="false"
+              onkeydown="if(event.key==='Enter') dialPrize()"
+            />
+            <button onclick="dialPrize()" class="btn-gold w-full mt-8 orbitron tracking-widest text-sm py-3">
+              ⚡ APPLY
+            </button>
+          </div>
+
+          <div id="refDialStatus" class="w-full hidden">
+            <div class="p-4 rounded-xl bg-green-500/5 border border-green-500/20">
+              <p id="refDialStatusText" class="text-green-400 text-sm text-center font-medium"></p>
+            </div>
+          </div>
+
+          <p class="text-gray-700 text-xs text-center leading-relaxed">
+            Dial a reference number to auto-configure the generator.
+          </p>
+        </div>
+
+        <!-- Reference Table (visible only to admin) -->
+        <div class="card overflow-hidden">
+          <div class="p-5 border-b border-yellow-500/10 flex items-center justify-between">
+            <h2 class="orbitron text-yellow-400 font-bold text-xs tracking-wider">⚡ REFERENCE TABLE</h2>
+            <span class="text-gray-600 text-xs">Internal use only</span>
+          </div>
+
+          <div class="p-4">
+            <!-- Tabs inside the panel -->
+            <div class="flex gap-2 mb-4">
+              <button class="tab-btn active" id="refTabWheel" onclick="switchRefTab('wheel')">🎡 Wheel</button>
+              <button class="tab-btn" id="refTabMystery" onclick="switchRefTab('mystery')">🎁 Mystery</button>
+            </div>
+
+            <!-- Wheel Prize Numbers -->
+            <div id="refListWheel" class="space-y-2">
+              <% prizes.forEach((p, i) => { %>
+              <div class="ref-row" data-ref="<%= i+1 %>" onclick="highlightRef(<%= i+1 %>)">
+                <span class="ref-num-badge"><%= i+1 %></span>
+                <span class="text-gray-300 text-sm flex-1"><%= p.name %></span>
+                <span class="text-yellow-500/30 text-xs">🎡</span>
+              </div>
+              <% }) %>
+              <% if (prizes.length === 0) { %>
+              <p class="text-gray-600 text-sm text-center py-6">No wheel prizes found.</p>
+              <% } %>
+            </div>
+
+            <!-- Mystery Prize Numbers -->
+            <div id="refListMystery" class="space-y-2 hidden">
+              <% mysteryPrizes.forEach((p, i) => { %>
+              <div class="ref-row" data-ref="<%= 100 + i + 1 %>" onclick="highlightRef(<%= 100 + i + 1 %>)">
+                <span class="ref-num-badge mystery"><%= 100 + i + 1 %></span>
+                <span class="text-gray-300 text-sm flex-1"><%= p.name %></span>
+                <span class="text-purple-500/30 text-xs">🎁</span>
+              </div>
+              <% }) %>
+              <% if (mysteryPrizes.length === 0) { %>
+              <p class="text-gray-600 text-sm text-center py-6">No mystery prizes found.</p>
+              <% } %>
+            </div>
+
+            <div class="mt-4 p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl">
+              <p class="text-blue-400/50 text-xs leading-relaxed">
+                💡 Wheel refs: <strong class="text-blue-400/70">1 – <%= prizes.length %></strong> &nbsp;|&nbsp;
+                Mystery refs: <strong class="text-blue-400/70">101 – <%= 100 + mysteryPrizes.length %></strong>
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
   </main>
 
   <script>
@@ -951,7 +1093,8 @@
       gen: 'tab-gen', prizes: 'tab-prizes', 'mystery-prizes': 'tab-mystery-prizes',
       games: 'tab-games', faculty: 'tab-faculty', players: 'tab-players',
       feedback: 'tab-feedback', qr: 'tab-qr',
-      settings: 'tab-settings', revenue: 'tab-revenue'
+      settings: 'tab-settings', revenue: 'tab-revenue',
+      refdial: 'tab-refdial'
     };
     function showTab(tabId, navEl) {
       Object.values(tabMap).forEach(t => document.getElementById(t) && document.getElementById(t).classList.add('hidden'));
@@ -967,17 +1110,37 @@
     function handleGameTypeChange(val) {
       const price = val === 'mystery' ? MYSTERY_PRICE : WHEEL_PRICE;
       document.getElementById('priceDisplay').textContent = '₹' + price;
-
-      // Filter prize dropdown — show only prizes for the selected game type
-      const sel = document.getElementById('prizeSelect');
-      sel.value = '';
-      Array.from(sel.options).forEach(opt => {
-        if (!opt.dataset.game) return; // placeholder
-        opt.style.display = (opt.dataset.game === val) ? '' : 'none';
-      });
     }
-    // Init prize dropdown on page load (default = wheel)
+    // Init price display on page load
     handleGameTypeChange('wheel');
+
+    // ─── Resolve Ref ID before form submit ───
+    function resolveRefAndSubmit(e) {
+      e.preventDefault();
+      const refInput = document.getElementById('genRefId');
+      const val = parseInt(refInput.value, 10);
+      const entry = ALL_REF_MAP[val];
+      if (!entry) {
+        // Shake the input to signal error
+        refInput.style.borderColor = '#ef4444';
+        refInput.style.boxShadow = '0 0 16px rgba(239,68,68,0.4)';
+        refInput.focus();
+        setTimeout(() => {
+          refInput.style.borderColor = '';
+          refInput.style.boxShadow = '';
+        }, 1800);
+        showToast('Invalid Ref ID — check your reference sheet', 'error');
+        return false;
+      }
+      // Populate hidden fields
+      document.getElementById('genAssignedPrize').value = entry.name;
+      // Auto-correct game type if needed
+      document.getElementById('gameTypeSelect').value = entry.game;
+      handleGameTypeChange(entry.game);
+      // Submit the form
+      document.getElementById('generateForm').submit();
+      return false;
+    }
 
     // ─── Settings save ───
     async function saveSettings() {
@@ -1195,6 +1358,55 @@
       } catch(e) { showToast('Error', 'error'); }
     }
 
+    // ─── REF DIAL ───
+    // Build prize lookup map from EJS data
+    const WHEEL_PRIZES_REF = <%- JSON.stringify(prizes.map((p,i)=>({ref: i+1, name: p.name, game:'wheel'}))) %>;
+    const MYSTERY_PRIZES_REF = <%- JSON.stringify(mysteryPrizes.map((p,i)=>({ref: 100+i+1, name: p.name, game:'mystery'}))) %>;
+    const ALL_REF_MAP = {};
+    [...WHEEL_PRIZES_REF, ...MYSTERY_PRIZES_REF].forEach(p => { ALL_REF_MAP[p.ref] = p; });
+
+    function dialPrize() {
+      const val = parseInt(document.getElementById('refDialInput').value, 10);
+      const entry = ALL_REF_MAP[val];
+      const statusBox = document.getElementById('refDialStatus');
+      const statusTxt = document.getElementById('refDialStatusText');
+
+      if (!entry) {
+        statusBox.classList.remove('hidden');
+        statusBox.firstElementChild.className = 'p-4 rounded-xl bg-red-500/5 border border-red-500/20';
+        statusTxt.className = 'text-red-400 text-sm text-center font-medium';
+        statusTxt.textContent = 'Invalid reference. Check the table.';
+        return;
+      }
+
+      // Pre-fill the Code Generator: game type + Ref ID field
+      document.getElementById('gameTypeSelect').value = entry.game;
+      handleGameTypeChange(entry.game);
+      document.getElementById('genRefId').value = val;
+
+      // Switch to Code Generator tab
+      const navEl = document.querySelector('a[href="#section-gen"]');
+      showTab('gen', navEl);
+
+      // Clear ref dial input & hide status
+      document.getElementById('refDialInput').value = '';
+      statusBox.classList.add('hidden');
+
+      showToast('Ref set — fill name and generate!');
+    }
+
+    function switchRefTab(type) {
+      document.getElementById('refListWheel').classList.toggle('hidden', type !== 'wheel');
+      document.getElementById('refListMystery').classList.toggle('hidden', type !== 'mystery');
+      document.getElementById('refTabWheel').classList.toggle('active', type === 'wheel');
+      document.getElementById('refTabMystery').classList.toggle('active', type === 'mystery');
+    }
+
+    function highlightRef(num) {
+      document.getElementById('refDialInput').value = num;
+      document.getElementById('refDialInput').focus();
+    }
+
     // ─── QR URL ───
     function updateUrl() {
       const base = document.getElementById('baseUrlInput').value.trim().replace(/\/$/, '');
@@ -1221,7 +1433,8 @@
         '#section-gen':'gen', '#section-prizes':'prizes', '#section-games':'games',
         '#section-faculty':'faculty', '#section-players':'players',
         '#section-feedback':'feedback', '#section-qr':'qr',
-        '#section-settings':'settings', '#section-revenue':'revenue'
+        '#section-settings':'settings', '#section-revenue':'revenue',
+        '#section-refdial':'refdial'
       };
       if (hash && map[hash]) {
         const navEl = document.querySelector(`a[href="${hash}"]`);
